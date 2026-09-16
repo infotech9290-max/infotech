@@ -43,9 +43,8 @@ export const useAuth = () => {
   return ctx;
 };
 
-const STORAGE_ROLE_KEY = 'infotech_auth_role';
-const STORAGE_USER_KEY = 'infotech_auth_user';
-const STORAGE_INIT_KEY = 'infotech_auth_initialized';
+const STORAGE_ROLE_KEY = 'infotech_portal_auth_role';
+const STORAGE_USER_KEY = 'infotech_portal_auth_user';
 const COOKIE_NAME = 'infotech_role';
 
 function setRoleCookie(role: UserRole | null) {
@@ -63,12 +62,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const router = useRouter();
 
-  // Restore session on mount to prevent SSR hydration mismatches
+  // Restore authenticated session ONLY if user previously logged in
   useEffect(() => {
     try {
+      // Clear legacy dev auto-login keys if present
+      localStorage.removeItem('infotech_auth_role');
+      localStorage.removeItem('infotech_auth_user');
+      localStorage.removeItem('infotech_auth_initialized');
+
       const savedRole = localStorage.getItem(STORAGE_ROLE_KEY) as UserRole | null;
       const savedUserStr = localStorage.getItem(STORAGE_USER_KEY);
-      const isInitialized = localStorage.getItem(STORAGE_INIT_KEY);
 
       if (savedRole === 'ADMIN' || savedRole === 'WORKER') {
         let parsedUser: AuthUser | null = null;
@@ -83,22 +86,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(activeUser);
         setRole(savedRole);
         setRoleCookie(savedRole);
-      } else if (!isInitialized) {
-        // Initial dev default session: ADMIN
-        localStorage.setItem(STORAGE_INIT_KEY, 'true');
-        localStorage.setItem(STORAGE_ROLE_KEY, 'ADMIN');
-        localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(ADMIN_USER));
-        setUser(ADMIN_USER);
-        setRole('ADMIN');
-        setRoleCookie('ADMIN');
       } else {
-        // Explicitly signed out
+        // Not logged in -> Must see Login Page first!
         setUser(null);
         setRole(null);
         setRoleCookie(null);
       }
     } catch (err) {
       console.error('Failed to initialize auth state:', err);
+      setUser(null);
+      setRole(null);
+      setRoleCookie(null);
     } finally {
       setIsLoading(false);
     }
