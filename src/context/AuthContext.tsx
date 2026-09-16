@@ -115,7 +115,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setRoleCookie(targetRole);
 
     try {
-      localStorage.setItem(STORAGE_INIT_KEY, 'true');
       localStorage.setItem(STORAGE_ROLE_KEY, targetRole);
       localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(activeUser));
     } catch (e) {
@@ -157,7 +156,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       localStorage.removeItem(STORAGE_ROLE_KEY);
       localStorage.removeItem(STORAGE_USER_KEY);
-      localStorage.setItem(STORAGE_INIT_KEY, 'true');
     } catch (e) {
       console.error('Failed to clear auth session on logout:', e);
     }
