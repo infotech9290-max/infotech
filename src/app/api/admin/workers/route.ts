@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/utils/supabaseServer';
 import crypto from 'crypto';
 import { readLocalWorkers, writeLocalWorkers, LocalWorker } from '@/utils/workerStorage';
+import { sendWorkerInviteEmail } from '@/utils/emailService';
 
 // GET: Return all active workers with real admission stats
 export async function GET() {
@@ -177,7 +178,24 @@ export async function POST(req: NextRequest) {
         ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
       }]);
     } catch {
-      // non-blocking
+      // non-blocking audit
+    }
+
+    // Send real welcome email with login credentials and 6-digit PIN
+    let emailSent = false;
+    try {
+      const origin = req.headers.get('origin') || 'http://localhost:3000';
+      const emailRes = await sendWorkerInviteEmail({
+        to: cleanEmail,
+        workerName: cleanName,
+        workerId: newId,
+        pin: password,
+        designation: cleanDesignation,
+        portalUrl: `${origin}/login`,
+      });
+      emailSent = emailRes.success && !emailRes.simulated;
+    } catch (emailErr) {
+      console.error('Worker email dispatch error:', emailErr);
     }
 
     const safeResponse = {
@@ -188,7 +206,8 @@ export async function POST(req: NextRequest) {
       designation: cleanDesignation,
       status: 'ACTIVE',
       admissions: 0,
-      successRate: '0%'
+      successRate: '0%',
+      emailSent,
     };
 
     return NextResponse.json({ success: true, worker: safeResponse });
