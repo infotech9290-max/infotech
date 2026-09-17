@@ -364,12 +364,6 @@ export default function LoginPage() {
     }
   };
 
-  const fillAdminCredentials = () => {
-    setEmail('infotech9290@gmail.com');
-    setPassword('admin');
-    setErrorMsg(null);
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#070b14] relative overflow-hidden font-sans p-4 select-none">
       
@@ -547,18 +541,9 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Quick Fill Admin Helper */}
-              <div className="flex items-center justify-between pt-1">
-                <button
-                  type="button"
-                  onClick={fillAdminCredentials}
-                  className="text-[10px] font-semibold text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1 cursor-pointer bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/50"
-                  title="Click to quickly fill default Super Admin login credentials"
-                >
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                  Auto-Fill Admin Demo
-                </button>
-                <span className="text-[10px] text-slate-500">v2.4 Secured</span>
+              {/* Production Gateway Version */}
+              <div className="flex items-center justify-end pt-1">
+                <span className="text-[10px] text-slate-500 font-mono">v2.4 Production Gateway</span>
               </div>
 
               {/* Login Button */}
