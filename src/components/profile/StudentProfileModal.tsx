@@ -188,11 +188,16 @@ export function StudentProfileModal({
 
   const handleWhatsApp = () => {
     const cleanPhone = (student.phone || '').replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 10) {
+      alert('A valid 10-digit mobile phone number is required to send WhatsApp notification.');
+      return;
+    }
+    const phone10 = cleanPhone.slice(-10);
     const due = student.fees.balanceDue;
     const msg = due > 0
-      ? `Dear ${student.name}, this is a gentle reminder from our Admissions Office regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please complete the payment or contact your counselor ${student.workerName}.`
-      : `Hello ${student.name}! Congratulations on your successful admission (ID: #${student.id}) for ${student.course}. We are delighted to welcome you!`;
-    window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(msg)}`, '_blank');
+      ? `Dear ${student.name}, this is a reminder regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please complete the payment or contact your counselor.`
+      : `Hello ${student.name}! Congratulations on your successful admission (ID: #${student.id}) for ${student.course}. Welcome aboard!`;
+    window.open(`https://wa.me/91${phone10}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   return (
@@ -205,7 +210,6 @@ export function StudentProfileModal({
         <DialogHeader className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/70 shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pr-6">
             <div className="flex items-center gap-3.5">
-              {/* Avatar Photo or Initials */}
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold text-lg sm:text-xl flex items-center justify-center border-2 border-white shadow-md shrink-0 overflow-hidden">
                 {student.photoUrl && !avatarError ? (
                   // eslint-disable-next-line @next/next/no-img-element

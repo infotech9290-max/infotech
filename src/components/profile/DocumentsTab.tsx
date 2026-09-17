@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { Student, DocumentRecord } from '@/types/student';
@@ -60,8 +60,16 @@ export function DocumentsTab({ student }: DocumentsTabProps) {
   };
 
   const handleDownload = (doc: DocumentRecord) => {
-    const blobContent = `APEX UNIVERSITY ARCHIVES\nDocument: ${doc.title}\nStudent: ${student.name} (#${student.id})\nCourse: ${student.course}\nStatus: Verified\nDate: ${doc.uploadDate}`;
-    const blob = new Blob([blobContent], { type: 'application/pdf' });
+    if (doc.url && doc.url !== '#' && (doc.url.startsWith('http') || doc.url.startsWith('/'))) {
+      const link = window.document.createElement('a');
+      link.href = doc.url;
+      link.target = '_blank';
+      link.download = doc.fileName;
+      link.click();
+      return;
+    }
+    const blobContent = `OFFICIAL ADMISSION ARCHIVES\nDocument: ${doc.title}\nStudent: ${student.name} (#${student.id})\nCourse: ${student.course}\nStatus: Verified\nDate: ${doc.uploadDate}`;
+    const blob = new Blob([blobContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
     link.href = url;

@@ -79,9 +79,11 @@ export interface Student {
   status: StudentStatus;     // 'Action Needed' | 'In Process' | 'Enrolled' | 'Rejected' | 'Cancelled'
   date: string;              // e.g. "14 Oct 2026, 10:30 AM"
   registrationDate?: string; // registration ISO or date string
+  workerId?: string;
   workerName: string;        
-  workerEmail: string;       // e.g. "ramesh@company.com"
+  workerEmail: string;       // e.g. worker's email
   worker?: {
+    id?: string;
     name: string;
     email: string;
   };

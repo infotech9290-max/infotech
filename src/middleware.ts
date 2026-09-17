@@ -7,7 +7,10 @@ export function middleware(request: NextRequest) {
 
   // Root path: redirect based on auth status
   if (pathname === '/') {
-    if (roleCookie === 'ADMIN' || roleCookie === 'WORKER') {
+    if (roleCookie === 'ADMIN') {
+      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    }
+    if (roleCookie === 'WORKER') {
       return NextResponse.redirect(new URL('/worker/my-dashboard', request.url));
     }
     return NextResponse.redirect(new URL('/login', request.url));
@@ -32,7 +35,10 @@ export function middleware(request: NextRequest) {
 
   // Login page: if already logged in, send directly to authorized dashboard
   if (pathname === '/login') {
-    if (roleCookie === 'ADMIN' || roleCookie === 'WORKER') {
+    if (roleCookie === 'ADMIN') {
+      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    }
+    if (roleCookie === 'WORKER') {
       return NextResponse.redirect(new URL('/worker/my-dashboard', request.url));
     }
   }

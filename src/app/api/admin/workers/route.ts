@@ -67,30 +67,28 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
     
-    // Generate clean sequential worker ID (e.g. WK-01, WK-02...)
-    const { count } = await supabaseServer
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'WORKER');
-
-    const nextIndex = (count || 0) + 1;
-    let candidateId = `WK-${String(nextIndex).padStart(2, '0')}`;
-
-    const { data: existingUser } = await supabaseServer
+    // Generate clean monotonic sequential worker ID (e.g. WK-01, WK-02...)
+    const { data: existingWorkers } = await supabaseServer
       .from('users')
       .select('id')
-      .eq('id', candidateId)
-      .maybeSingle();
+      .ilike('id', 'WK-%');
 
-    if (existingUser) {
-      candidateId = `WK-${Math.floor(10 + Math.random() * 90)}`;
+    let maxIndex = 0;
+    if (existingWorkers && existingWorkers.length > 0) {
+      for (const w of existingWorkers) {
+        const match = w.id.match(/^WK-(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxIndex) maxIndex = num;
+        }
+      }
     }
-    const newId = candidateId;
+    const newId = `WK-${String(maxIndex + 1).padStart(2, '0')}`;
     
     const newUser = {
       id: newId,
       name,
-      email,
+      email: email.trim().toLowerCase(),
       role: 'WORKER',
       passwordHash
     };
@@ -104,6 +102,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
       }
       throw error;
+    }
+
+    // Record audit log for new worker creation
+    try {
+      await supabaseServer.from('audit_logs').insert([{
+        action: `Created new counselor account: ${name} (${newId})`,
+        device_info: req.headers.get('user-agent') || 'Admin Dashboard',
+        ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+      }]);
+    } catch {
+      // non-blocking
     }
 
     const safeResponse = {

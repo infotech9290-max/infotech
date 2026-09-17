@@ -258,15 +258,19 @@ export function StepFeeDetails({
               Scholarship / Concession (₹)
             </Label>
             <Input id="discount" type="number" min="0" step="500" placeholder="0" value={data.discount || ""} onChange={(e) => handleDiscountChange(parseFloat(e.target.value))} className={`h-9 text-sm text-emerald-700 font-medium ${errorFields.discount ? "border-red-500" : ""}`} />
-            {data.discount > 10000 ? (
-                <p className="text-[11px] text-red-600 font-bold flex items-center gap-1 mt-1">
-                  <AlertTriangle className="w-3 h-3" /> Exceeds ₹10,000 Worker limit!
-                </p>
-              ) : (
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Max allowed: ₹10,000 (Merit/Quota)
-                </p>
-              )}
+            {errorFields.discount ? (
+              <p className="text-[11px] text-red-600 font-bold flex items-center gap-1 mt-1">
+                <AlertTriangle className="w-3 h-3" /> {errorFields.discount}
+              </p>
+            ) : data.discount > 10000 ? (
+              <p className="text-[11px] text-amber-600 font-bold flex items-center gap-1 mt-1">
+                <AlertTriangle className="w-3 h-3" /> Worker limit is ₹10,000 (Admin approval required)
+              </p>
+            ) : (
+              <p className="text-[10px] text-slate-400 mt-1">
+                Merit or quota concession
+              </p>
+            )}
           </div>
 
           {/* Down Payment / Paid Today */}

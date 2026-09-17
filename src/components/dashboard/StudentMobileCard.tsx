@@ -51,7 +51,7 @@ export function StudentMobileCard({ student, onSelect }: StudentMobileCardProps)
         <div className="flex items-center gap-1.5 text-slate-700 justify-end min-w-0">
           <Award className="w-4 h-4 text-emerald-600 shrink-0" />
           <span className="font-medium truncate">
-            10th: {student.marks?.tenth || student.academic.tenthMarks} | 12th: {student.marks?.twelfth || student.academic.twelfthMarks}
+            10th: {student.marks?.tenth || student.academic?.tenthMarks || 'N/A'} | 12th: {student.marks?.twelfth || student.academic?.twelfthMarks || 'N/A'}
           </span>
         </div>
       </div>
@@ -67,16 +67,21 @@ export function StudentMobileCard({ student, onSelect }: StudentMobileCardProps)
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md"
+              className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md cursor-pointer"
               title="Chat on WhatsApp"
               onClick={(e) => {
                 e.stopPropagation();
                 const cleanPhone = (student.phone || '').replace(/[^0-9]/g, '');
+                if (cleanPhone.length < 10) {
+                  alert('Valid 10-digit phone number is required.');
+                  return;
+                }
+                const phone10 = cleanPhone.slice(-10);
                 const due = student.fees?.balanceDue ?? 0;
                 const msg = due > 0
-                  ? `Dear ${student.name}, this is a reminder from our Institute regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please contact counselor ${student.workerName}.`
+                  ? `Dear ${student.name}, this is a reminder regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please contact counselor ${student.workerName}.`
                   : `Hello ${student.name}! Congratulations on your admission (ID: #${student.id}) for ${student.course}. Welcome aboard!`;
-                window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(msg)}`, '_blank');
+                window.open(`https://wa.me/91${phone10}?text=${encodeURIComponent(msg)}`, '_blank');
               }}
             >
               <MessageSquare className="w-3.5 h-3.5" />

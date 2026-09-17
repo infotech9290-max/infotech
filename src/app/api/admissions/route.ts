@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (workerId) {
-      query = query.eq('worker_id', workerId);
+      query = query.or(`worker_id.eq.${workerId},worker_email.ilike.${workerId}`);
     }
 
     const { data, error } = await query;

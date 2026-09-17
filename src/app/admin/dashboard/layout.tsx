@@ -2,6 +2,7 @@
 
 import { ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Users,
@@ -25,7 +26,8 @@ interface NavItem {
 }
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const { logout } = useAuth();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('overview');
 
   const navItems: NavItem[] = [
@@ -82,11 +84,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const switchTab = (tabId: string) => {
     setCurrentTab(tabId);
     if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.pathname = '/admin/dashboard';
-      url.searchParams.set('tab', tabId);
-      window.history.pushState({}, '', url.toString());
-      window.dispatchEvent(new CustomEvent('admin-tab-change', { detail: tabId }));
+      if (window.location.pathname !== '/admin/dashboard') {
+        router.push(`/admin/dashboard?tab=${tabId}`);
+      } else {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tabId);
+        window.history.pushState({}, '', url.toString());
+        window.dispatchEvent(new CustomEvent('admin-tab-change', { detail: tabId }));
+      }
     }
   };
 
@@ -206,7 +211,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Main Content Area — Full Width! */}
-        <main className="flex-1 w-full max-w-7xl mx-auto overflow-y-auto">
+        <main className="flex-1 w-full max-w-7xl mx-auto">
           {children}
         </main>
       </div>

@@ -10,10 +10,10 @@ function isAdminRequest(req: NextRequest): boolean {
 
 // DELETE: Remove a worker by ID
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isAdminRequest(_req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
@@ -34,6 +34,16 @@ export async function DELETE(
       .eq('role', 'WORKER'); // Safety: only delete workers, never admins
 
     if (error) throw error;
+
+    try {
+      await supabaseServer.from('audit_logs').insert([{
+        action: `Removed counselor account: #${id}`,
+        device_info: req.headers.get('user-agent') || 'Admin Dashboard',
+        ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+      }]);
+    } catch {
+      // non-blocking
+    }
 
     return NextResponse.json({ success: true, message: 'Worker removed successfully' });
   } catch (err) {
@@ -58,6 +68,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Worker ID and new password are required' }, { status: 400 });
     }
 
+    if (id === 'ADM-01') {
+      return NextResponse.json({ error: 'Cannot reset Super Admin password via worker API' }, { status: 403 });
+    }
+
     if (newPassword.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
@@ -67,9 +81,20 @@ export async function PATCH(
     const { error } = await supabaseServer
       .from('users')
       .update({ passwordHash: newHash, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('role', 'WORKER');
 
     if (error) throw error;
+
+    try {
+      await supabaseServer.from('audit_logs').insert([{
+        action: `Reset password for counselor account: #${id}`,
+        device_info: req.headers.get('user-agent') || 'Admin Dashboard',
+        ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+      }]);
+    } catch {
+      // non-blocking
+    }
 
     return NextResponse.json({ success: true, message: 'Password reset successfully' });
   } catch (err) {

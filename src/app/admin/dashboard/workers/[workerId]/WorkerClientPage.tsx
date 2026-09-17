@@ -6,7 +6,7 @@ import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StudentList } from '@/components/dashboard/StudentList';
 import { StudentProfileModal } from '@/components/profile/StudentProfileModal';
-import { Student } from '@/types/student';
+import { Student, StudentStatus } from '@/types/student';
 import { mapDbRecordToStudent, DbAdmissionRecord } from '@/utils/studentMapper';
 
 interface WorkerInfo {
@@ -30,28 +30,40 @@ export default function WorkerDrilldownPage() {
   });
 
   const [students, setStudents] = useState<Student[]>([]);
+  const [statusFilter, setStatusFilter] = useState<StudentStatus | 'ALL'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   useEffect(() => {
+    if (!workerId) return;
+
     const fetchData = async () => {
       setIsLoading(true);
       try {
         // 1. Fetch real worker info from DB
-        const workersRes = await fetch('/api/admin/workers');
-        if (workersRes.ok) {
-          const workersJson = await workersRes.json();
-          const allWorkers = workersJson.workers || [];
-          const found = allWorkers.find(
-            (w: any) => w.id === workerId || w.email === workerId
-          );
-          if (found) {
-            setWorker({
-              id: found.id,
-              name: found.name,
-              email: found.email,
-              status: 'ACTIVE',
-            });
+        if (workerId === 'ADM-01' || workerId === 'info@admin.com') {
+          setWorker({
+            id: 'ADM-01',
+            name: 'Super Admin (Director & Counselor)',
+            email: 'info@admin.com',
+            status: 'ACTIVE',
+          });
+        } else {
+          const workersRes = await fetch('/api/admin/workers');
+          if (workersRes.ok) {
+            const workersJson = await workersRes.json();
+            const allWorkers = workersJson.workers || [];
+            const found = allWorkers.find(
+              (w: any) => w.id === workerId || w.email === workerId
+            );
+            if (found) {
+              setWorker({
+                id: found.id,
+                name: found.name,
+                email: found.email,
+                status: 'ACTIVE',
+              });
+            }
           }
         }
 
@@ -162,8 +174,8 @@ export default function WorkerDrilldownPage() {
           <StudentList
             students={students}
             onSelectStudent={(s) => setSelectedStudent(s)}
-            activeStatusFilter="ALL"
-            onFilterChange={() => {}}
+            activeStatusFilter={statusFilter}
+            onFilterChange={setStatusFilter}
           />
         )}
       </div>

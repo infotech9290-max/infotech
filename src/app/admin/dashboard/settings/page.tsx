@@ -135,7 +135,7 @@ export default function SettingsPage() {
   };
 
   const addCourse = () => {
-    setCourses([...courses, { id: Date.now(), name: 'New Course Name', fee: 0, minDownpayment: 0, commissionRate: 0, maxInstallments: 2, inst1: 0, inst2: 0, inst3: 0, inst4: 0 }]);
+    setCourses([...courses, { id: Date.now(), name: 'New Course Name', fee: 0, minDownpayment: 0, commissionRate: 0, maxInstallments: 2, inst1: 0, inst2: 0, inst3: 0, inst4: 0, inst1Months: 1, inst2Months: 3, inst3Months: 6, inst4Months: 9 }]);
   };
 
   const updateCourse = (id: number, field: string, value: string | number) => {
@@ -390,7 +390,7 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">IFSC Code</Label>
-                <Input value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value)} className="h-12 rounded-xl border-slate-200 font-mono text-sm uppercase" />
+                <Input value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value.toUpperCase())} className="h-12 rounded-xl border-slate-200 font-mono text-sm uppercase" />
               </div>
             </div>
             <div className="pt-4 flex justify-between border-t border-slate-100">
@@ -477,7 +477,7 @@ export default function SettingsPage() {
               Add these Environment Variables in your Vercel Project Settings (Project → Settings → Environment Variables):
             </p>
             <div className="bg-white rounded-xl border border-blue-100 p-3 font-mono text-xs text-slate-700 space-y-1.5">
-              <p><span className="text-blue-600">SUPABASE_URL</span> = https://ozjqjhcyckximousfypo.supabase.co</p>
+              <p><span className="text-blue-600">SUPABASE_URL</span> = https://&lt;your-project-id&gt;.supabase.co</p>
               <p><span className="text-blue-600">SUPABASE_ANON_KEY</span> = eyJhbGci...</p>
               <p><span className="text-red-600">SUPABASE_PAT</span> = sbp_... (your personal access token)</p>
             </div>

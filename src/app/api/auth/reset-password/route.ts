@@ -10,10 +10,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email, current password, and new password are required' }, { status: 400 });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
     const { data: users, error: fetchErr } = await supabaseServer
       .from('users')
       .select('*')
-      .ilike('email', email.trim());
+      .eq('email', cleanEmail);
 
     if (fetchErr || !users || users.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

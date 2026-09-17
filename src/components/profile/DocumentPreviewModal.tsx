@@ -40,6 +40,7 @@ export function DocumentPreviewModal({
   const fileName = activeDoc?.fileName || `${student.name.replace(/\s+/g, '_')}_Admission_Dossier.pdf`;
   const fileSize = activeDoc?.fileSize || '3.4 MB';
   const uploadDate = activeDoc?.uploadDate || student.date.split(',')[0];
+  const docUrl = activeDoc?.url;
 
   const checklist = activeDoc?.checklistItems || [
     `Class 10 Marksheet & Certificate (${student.marks.tenth})`,
@@ -50,9 +51,16 @@ export function DocumentPreviewModal({
   ];
 
   const handleDownload = () => {
-    // Create a simulated text/pdf blob download for authentic user interaction
-    const blobContent = `APEX UNIVERSITY ADMISSIONS ARCHIVE\nStudent: ${student.name} (${student.id})\nCourse: ${student.course}\nStatus: ${student.status}\nFile: ${fileName}\nVerified: Yes`;
-    const blob = new Blob([blobContent], { type: 'application/pdf' });
+    if (docUrl && docUrl !== '#' && (docUrl.startsWith('http') || docUrl.startsWith('/'))) {
+      const link = window.document.createElement('a');
+      link.href = docUrl;
+      link.target = '_blank';
+      link.download = fileName;
+      link.click();
+      return;
+    }
+    const blobContent = `OFFICIAL ADMISSION ARCHIVE\nStudent: ${student.name} (${student.id})\nCourse: ${student.course}\nStatus: ${student.status}\nFile: ${fileName}\nVerified: Yes`;
+    const blob = new Blob([blobContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
     link.href = url;
@@ -102,7 +110,7 @@ export function DocumentPreviewModal({
             <div className="border-b border-slate-200 pb-4 text-center space-y-1">
               <div className="inline-flex items-center gap-2 text-slate-800 font-bold text-sm tracking-wide uppercase">
                 <Building2 className="w-4 h-4 text-blue-600" />
-                Apex Institute of Higher Learning
+                Admissions Verification Office
               </div>
               <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
                 Consolidated Admission & Academic Dossier
@@ -164,7 +172,7 @@ export function DocumentPreviewModal({
             {/* Document Signature Footer */}
             <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-400">
               <span>Page 1 of 3 (Archived PDF)</span>
-              <span className="font-mono text-[10px]">SHA256: 7f8c9b2...verified</span>
+              <span className="font-mono text-[10px]">Ref: #{student.id} • Verified</span>
             </div>
           </div>
         </div>

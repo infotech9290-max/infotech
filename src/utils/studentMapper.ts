@@ -126,8 +126,14 @@ export function mapDbRecordToStudent(dbRec: DbAdmissionRecord): Student {
   const discount = dbRec.discount ? Number(dbRec.discount) : 0;
   const netFee = Math.max(0, totalFee - discount);
   
-  const balanceDue = dbRec.balance_due ? Number(dbRec.balance_due) : 0;
-  const paidAmount = dbRec.paid_amount ? Number(dbRec.paid_amount) : Math.max(0, netFee - balanceDue);
+  const balanceDue = (dbRec.balance_due !== undefined && dbRec.balance_due !== null && dbRec.balance_due !== '')
+    ? Math.max(0, Number(dbRec.balance_due))
+    : 0;
+
+  const hasExplicitPaid = dbRec.paid_amount !== undefined && dbRec.paid_amount !== null && dbRec.paid_amount !== '';
+  const paidAmount = hasExplicitPaid 
+    ? Math.max(0, Number(dbRec.paid_amount)) 
+    : Math.max(0, netFee - balanceDue);
 
   const feeSummary: FeeSummary = {
     totalFee,
@@ -139,18 +145,18 @@ export function mapDbRecordToStudent(dbRec: DbAdmissionRecord): Student {
 
   const paymentMethod = normalizePaymentMethod(dbRec.payment_method);
   const realUtr = dbRec.payment_utr?.trim() || '';
-  const receivingBank = 'N/A';
+  const receivingBank = 'Official Account';
   const screenshotUrl = dbRec.payment_screenshot_url || '';
-  const isVerified = status === 'Enrolled' || status === 'In Process' || Boolean(dbRec.payment_utr);
+  const isVerified = status === 'Enrolled' || (Boolean(realUtr) && realUtr !== 'OFFLINE-DESK');
 
   const payments: PaymentRecord[] = [];
-  if (paidAmount > 0 || realUtr) {
+  if (paidAmount > 0 || realUtr || screenshotUrl) {
     payments.push({
       id: `PMT-${studentId}`,
       amount: paidAmount,
       date: formattedDate,
       method: paymentMethod,
-      utr: realUtr,
+      utr: realUtr || (paymentMethod === 'Cash' ? 'CASH-OFFICE' : 'PENDING-UTR'),
       bankDetails: receivingBank,
       screenshotUrl,
       verified: isVerified,
@@ -215,9 +221,11 @@ export function mapDbRecordToStudent(dbRec: DbAdmissionRecord): Student {
     status,
     date: formattedDate,
     registrationDate: dbRec.created_at || new Date().toISOString(),
+    workerId: dbRec.worker_id || '',
     workerName,
     workerEmail,
     worker: {
+      id: dbRec.worker_id || '',
       name: workerName,
       email: workerEmail,
     },

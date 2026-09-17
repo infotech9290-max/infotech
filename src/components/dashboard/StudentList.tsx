@@ -81,13 +81,13 @@ export function StudentList({
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch =
         !q ||
-        student.name.toLowerCase().includes(q) ||
-        student.id.toLowerCase().includes(q) ||
-        student.course.toLowerCase().includes(q) ||
-        student.workerName.toLowerCase().includes(q) ||
-        student.phone.toLowerCase().includes(q) ||
-        student.email.toLowerCase().includes(q) ||
-        (student.payments?.[0]?.utr && student.payments[0].utr.toLowerCase().includes(q));
+        (student.name?.toLowerCase().includes(q)) ||
+        (student.id?.toLowerCase().includes(q)) ||
+        (student.course?.toLowerCase().includes(q)) ||
+        (student.workerName?.toLowerCase().includes(q)) ||
+        (student.phone?.toLowerCase().includes(q)) ||
+        (student.email?.toLowerCase().includes(q)) ||
+        Boolean(student.payments?.some((p) => p.utr?.toLowerCase().includes(q)));
 
       return matchesStatus && matchesCourse && matchesCounselor && matchesSearch;
     });
@@ -114,33 +114,41 @@ export function StudentList({
       'UTR',
       'Admission Date',
     ];
+    const escapeCsv = (val: unknown) => {
+      const s = val === null || val === undefined ? '' : String(val);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
     const rows = filteredStudents.map((s) => [
-      `"${s.id}"`,
-      `"${s.name}"`,
-      `"${s.course}"`,
-      `"${s.status}"`,
-      `"${s.workerName}"`,
-      `"${s.phone}"`,
-      `"${s.email}"`,
-      `"${s.academic.tenthMarks}"`,
-      `"${s.academic.twelfthMarks}"`,
-      `"${s.fees.totalFee}"`,
-      `"${s.fees.scholarship ?? s.fees.discount ?? 0}"`,
-      `"${s.fees.netFee}"`,
-      `"${s.fees.paidAmount}"`,
-      `"${s.fees.balanceDue}"`,
-      `"${s.payments?.[0]?.paymentMethod || s.payments?.[0]?.method || 'UPI'}"`,
-      `"${s.payments?.[0]?.utr || ''}"`,
-      `"${s.registrationDate ? new Date(s.registrationDate).toLocaleDateString('en-GB') : s.date}"`,
+      escapeCsv(s.id),
+      escapeCsv(s.name),
+      escapeCsv(s.course),
+      escapeCsv(s.status),
+      escapeCsv(s.workerName),
+      escapeCsv(s.phone),
+      escapeCsv(s.email),
+      escapeCsv(s.academic?.tenthMarks ?? s.marks?.tenth ?? 'N/A'),
+      escapeCsv(s.academic?.twelfthMarks ?? s.marks?.twelfth ?? 'N/A'),
+      escapeCsv(s.fees?.totalFee ?? 0),
+      escapeCsv(s.fees?.scholarship ?? s.fees?.discount ?? 0),
+      escapeCsv(s.fees?.netFee ?? 0),
+      escapeCsv(s.fees?.paidAmount ?? 0),
+      escapeCsv(s.fees?.balanceDue ?? 0),
+      escapeCsv(s.payments?.[0]?.paymentMethod || s.payments?.[0]?.method || (s.fees?.paidAmount ? 'Official Account' : 'N/A')),
+      escapeCsv(s.payments?.[0]?.utr || ''),
+      escapeCsv(s.registrationDate ? new Date(s.registrationDate).toLocaleDateString('en-GB') : s.date),
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+
+    const csvContent = '\uFEFF' + [headers.map(escapeCsv).join(','), ...rows.map((e) => e.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.href = url;
     link.setAttribute('download', `admissions_export_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -290,19 +298,25 @@ export function StudentList({
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-slate-800">No students found</h4>
+              <h4 className="text-sm font-semibold text-slate-800">
+                {students.length === 0 ? 'No admission records yet' : 'No matching students found'}
+              </h4>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                No admission records match your current filter and search query. Try clearing filters or searching for something else.
+                {students.length === 0
+                  ? 'All newly registered student admissions will appear in this ledger.'
+                  : 'No admission records match your current filter and search query. Try clearing filters or searching for something else.'}
               </p>
             </div>
-            {(activeStatusFilter !== 'ALL' || searchQuery) && (
+            {(activeStatusFilter !== 'ALL' || searchQuery || courseFilter !== 'ALL' || counselorFilter !== 'ALL') && (
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs text-slate-600"
+                className="text-xs text-slate-600 cursor-pointer"
                 onClick={() => {
                   onFilterChange('ALL');
                   setSearchQuery('');
+                  setCourseFilter('ALL');
+                  setCounselorFilter('ALL');
                 }}
               >
                 Reset All Filters
@@ -417,7 +431,7 @@ export function StudentList({
                           <div className="flex items-center gap-1.5 text-xs text-slate-700">
                             <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             <span>
-                              {student.marks?.tenth || student.academic.tenthMarks} / {student.marks?.twelfth || student.academic.twelfthMarks}
+                              {(student.marks?.tenth || student.academic?.tenthMarks || 'N/A')} / {(student.marks?.twelfth || student.academic?.twelfthMarks || 'N/A')}
                             </span>
                           </div>
                         </TableCell>
@@ -459,16 +473,21 @@ export function StudentList({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                                className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
                                 title={`WhatsApp ${student.name}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const cleanPhone = (student.phone || '').replace(/[^0-9]/g, '');
+                                  if (cleanPhone.length < 10) {
+                                    alert('Valid 10-digit phone number is required to send WhatsApp notification.');
+                                    return;
+                                  }
+                                  const phone10 = cleanPhone.slice(-10);
                                   const due = student.fees?.balanceDue ?? 0;
                                   const msg = due > 0
-                                    ? `Dear ${student.name}, this is a reminder from our Institute regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please contact counselor ${student.workerName}.`
+                                    ? `Dear ${student.name}, this is a reminder regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please contact counselor ${student.workerName}.`
                                     : `Hello ${student.name}! Congratulations on your admission (ID: #${student.id}) for ${student.course}. Welcome aboard!`;
-                                  window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(msg)}`, '_blank');
+                                  window.open(`https://wa.me/91${phone10}?text=${encodeURIComponent(msg)}`, '_blank');
                                 }}
                               >
                                 <MessageSquare className="w-4 h-4" />

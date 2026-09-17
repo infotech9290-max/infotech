@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { Student, PaymentRecord, formatINR } from '@/types/student';
@@ -57,7 +57,7 @@ export function PaymentScreenshotModal({
   };
 
   const handleDownloadReceipt = () => {
-    const slipText = `APEX UNIVERSITY ADMISSION FEE RECEIPT\n===================================\nVoucher ID: ${payment.id}\nStudent: ${student?.name || 'N/A'} (ID: ${student?.id || 'N/A'})\nCourse: ${student?.course || 'N/A'}\nAmount: ${formatINR(payment.amount)}\nMethod: ${payment.method}\nUTR / Ref: ${payment.utr}\nBank: ${payment.bankDetails}\nDate: ${payment.date}\nStatus: ${payment.verified ? 'PAID & VERIFIED' : 'PENDING AUDIT'}\n===================================`;
+    const slipText = `OFFICIAL ADMISSION FEE RECEIPT\n===================================\nVoucher ID: ${payment.id}\nStudent: ${student?.name || 'N/A'} (ID: ${student?.id || 'N/A'})\nCourse: ${student?.course || 'N/A'}\nAmount: ${formatINR(payment.amount)}\nMethod: ${payment.method}\nUTR / Ref: ${payment.utr}\nBank: ${payment.bankDetails}\nDate: ${payment.date}\nStatus: ${payment.verified ? 'PAID & VERIFIED' : 'PENDING AUDIT'}\n===================================`;
     const blob = new Blob([slipText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
@@ -95,7 +95,7 @@ export function PaymentScreenshotModal({
               <div>
                 <div className="inline-flex items-center gap-1.5 text-xs text-blue-300 font-semibold tracking-wide uppercase">
                   <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                  Apex Admissions Treasury
+                  Admissions Treasury
                 </div>
                 <h4 className="text-sm font-bold text-slate-100 mt-0.5">
                   Official Electronic Payment Slip
@@ -198,7 +198,7 @@ export function PaymentScreenshotModal({
             {/* Digital Security Micro-Text */}
             <div className="pt-4 text-center">
               <span className="text-[10px] text-slate-400 font-mono">
-                System Reconciled • Digital Audit Hash: 0x{payment.id.replace(/-/g, '').toLowerCase()}...9a
+                System Reconciled • Receipt Ref: {payment.utr}
               </span>
             </div>
           </div>

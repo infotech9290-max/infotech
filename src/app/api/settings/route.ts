@@ -12,14 +12,19 @@ export async function GET() {
       .single();
 
     if (error) {
-      if (error.code === 'PGRST205') {
+      if (error.code === 'PGRST205' || error.code === 'PGRST116') {
         return NextResponse.json({
           data: {
             website_name: '',
             brand: { websiteName: '', logoUrl: '' },
             courses: [],
+            upi_id: '',
+            bank_name: '',
+            account_name: '',
+            bank_account: '',
+            bank_ifsc: '',
           },
-          warning: 'Database tables not initialized yet. Visit /setup to initialize.',
+          warning: error.code === 'PGRST205' ? 'Database tables not initialized yet. Visit /setup to initialize.' : undefined,
         });
       }
       throw error;
@@ -44,6 +49,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const roleCookie = req.cookies.get('portal_role')?.value || req.cookies.get('infotech_role')?.value;
+    if (roleCookie !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin privileges required to update settings' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { upi_id, bank_name, account_name, bank_account, bank_ifsc, courses, brand } = body;
 
@@ -72,6 +82,18 @@ export async function POST(req: NextRequest) {
       .upsert({ id: 1, ...payload })
       .select()
       .single();
+
+    if (error) throw error;
+
+    try {
+      await supabaseServer.from('audit_logs').insert([{
+        action: 'Updated portal settings (branding & financial gateway)',
+        device_info: req.headers.get('user-agent') || 'Admin Settings',
+        ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+      }]);
+    } catch {
+      // non-blocking
+    }
 
     if (error) throw error;
 

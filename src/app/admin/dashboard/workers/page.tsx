@@ -124,7 +124,7 @@ export default function WorkersPage() {
         return;
       }
 
-      setWorkers((prev) => [data.worker, ...prev]);
+      setWorkers((prev) => (prev.length > 0 ? [prev[0], data.worker, ...prev.slice(1)] : [data.worker]));
       setInvitedPin(securePin); // Show PIN in UI for admin to share
     } catch (err) {
       alert('Error creating worker');

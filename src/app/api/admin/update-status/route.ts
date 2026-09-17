@@ -51,8 +51,8 @@ export async function POST(req: NextRequest) {
     if (balanceDue !== undefined) {
       const sanitizedBalance = Math.max(0, Number(balanceDue) || 0);
       updatePayload.balance_due = sanitizedBalance;
-      // If balance is cleared and status wasn't explicitly set to cancelled/rejected, mark Enrolled
-      if (sanitizedBalance === 0 && (!status || status === 'In Process' || status === 'Action Needed')) {
+      // If balance is cleared and status was not explicitly specified, default to Enrolled
+      if (sanitizedBalance === 0 && !status) {
         updatePayload.status = 'ENROLLED';
         statusDisplay = 'Enrolled';
       }

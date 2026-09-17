@@ -456,9 +456,13 @@ function OverviewView({
                           e.stopPropagation();
                           const phone = (record as any).phone || '';
                           const clean = phone.replace(/[^0-9]/g, '');
+                          if (clean.length < 10) {
+                            alert('Valid 10-digit mobile number required.');
+                            return;
+                          }
                           const due = Number(record.balance_due || 0);
                           const text = due > 0
-                            ? encodeURIComponent(`Dear ${record.student_name}, this is a reminder from our Institute regarding your pending admission balance fee of ₹${due.toLocaleString('en-IN')} for ${record.graduation_course || ''}. Kindly clear the dues via UPI or contact your counselor.`)
+                            ? encodeURIComponent(`Dear ${record.student_name}, this is a reminder regarding your pending admission balance fee of ₹${due.toLocaleString('en-IN')} for ${record.graduation_course || ''}. Kindly clear the dues or contact your counselor.`)
                             : encodeURIComponent(`Hello ${record.student_name}! Congratulations on your enrollment (ID: #${record.unique_id}) for ${record.graduation_course || ''}. Welcome aboard!`);
                           window.open(`https://wa.me/91${clean.slice(-10)}?text=${text}`, '_blank');
                         }}
@@ -625,7 +629,7 @@ function SettingsView() {
 
 export default function WorkerSPA() {
   const { role, user, logout } = useAuth();
-  const workerName = user?.email?.split('@')[0] || '';
+  const workerName = user?.name || user?.email?.split('@')[0] || 'Counselor';
   const [mounted, setMounted] = useState<boolean>(false);
   const [activeView, setActiveView] = useState<ActiveView>('home');
   const [admissions, setAdmissions] = useState<AdmissionRecord[]>([]);
@@ -638,10 +642,16 @@ export default function WorkerSPA() {
     fetch('/api/settings')
       .then((res) => res.json())
       .then((json) => {
-        const name = json.data?.brand?.websiteName;
+        const name = json.data?.brand?.websiteName || json.data?.website_name;
         if (name) setBrandName(name);
       })
       .catch(() => {});
+
+    const onBrandUpdate = (e: CustomEvent) => {
+      if (e.detail) setBrandName(e.detail);
+    };
+    window.addEventListener('brand-update', onBrandUpdate as EventListener);
+    return () => window.removeEventListener('brand-update', onBrandUpdate as EventListener);
   }, []);
 
   const handleSelectRecord = (record: any) => {
@@ -841,7 +851,7 @@ export default function WorkerSPA() {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => setActiveView('overview')}
+                  onClick={() => setActiveView('home')}
                   className="rounded-xl border-slate-200 hover:bg-slate-50 font-bold text-sm cursor-pointer"
                 >
                   Cancel & Return
@@ -851,9 +861,9 @@ export default function WorkerSPA() {
                 <AdmissionWizard
                   onSuccess={() => {
                     loadAdmissions(true);
-                    setActiveView('overview');
                   }}
-                  onCancel={() => setActiveView('overview')}
+                  onComplete={() => setActiveView('overview')}
+                  onCancel={() => setActiveView('home')}
                 />
               </div>
             </div>

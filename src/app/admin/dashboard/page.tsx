@@ -19,7 +19,8 @@ type AdminTab = 'overview' | 'workers' | 'settings' | 'footprints' | 'admission'
 export default function AdminOverview() {
   const [currentTab, setCurrentTab] = useState<AdminTab>('overview');
   const [students, setStudents] = useState<Student[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeStatusFilter, setActiveStatusFilter] = useState<StudentStatus | 'ALL'>('ALL');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
@@ -59,8 +60,9 @@ export default function AdminOverview() {
 
   const fetchStudents = async () => {
     setIsLoading(true);
+    setFetchError(null);
     try {
-      const res = await fetch('/api/admissions');
+      const res = await fetch('/api/admissions', { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         const data = json.data;
@@ -72,9 +74,11 @@ export default function AdminOverview() {
           return;
         }
       }
+      setFetchError('Unable to load admissions data. Please try again.');
       setStudents([]);
     } catch (err) {
       console.error('Error fetching admissions from API:', err);
+      setFetchError('Network error while connecting to admissions server.');
       setStudents([]);
     } finally {
       setIsLoading(false);
@@ -152,6 +156,18 @@ export default function AdminOverview() {
               transition={{ duration: 0.3 }}
               className="space-y-8"
             >
+              {fetchError && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{fetchError}</p>
+                  <button
+                    onClick={fetchStudents}
+                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all cursor-pointer shrink-0"
+                  >
+                    ↻ Retry
+                  </button>
+                </div>
+              )}
+
               {/* 6-Card Pastel Metrics Grid */}
               <section aria-label="Student Admissions Metrics">
                 <MetricsGrid
@@ -255,6 +271,7 @@ export default function AdminOverview() {
             if (!open) setSelectedStudent(null);
           }}
           onStatusUpdated={(updated) => {
+            setSelectedStudent(updated);
             setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
           }}
         />

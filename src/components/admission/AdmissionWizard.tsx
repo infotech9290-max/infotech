@@ -32,12 +32,14 @@ import {
 interface AdmissionWizardProps {
   onSuccess?: (student: Student) => void;
   onCancel?: () => void;
+  onComplete?: () => void;
   isModal?: boolean;
 }
 
 export function AdmissionWizard({
   onSuccess,
   onCancel,
+  onComplete,
   isModal = false,
 }: AdmissionWizardProps) {
   const router = useRouter();
@@ -130,7 +132,9 @@ export function AdmissionWizard({
     delete safeStudentData.photoPreview;
     delete (safeStudentData as any).pdfDossier;
     delete (safeStudentData as any).tenthMarksheet;
+    delete safeStudentData.tenthMarksheetPreview;
     delete (safeStudentData as any).twelfthMarksheet;
+    delete safeStudentData.twelfthMarksheetPreview;
     
     const safeFeeData = { ...feeData };
     delete (safeFeeData as any).paymentScreenshot;
@@ -149,7 +153,7 @@ export function AdmissionWizard({
   useEffect(() => {
     if (currentStep === 4) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (studentData.name.length > 2 || studentData.phone.length > 4) {
+      if (studentData.name || studentData.phone || studentData.email) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -163,7 +167,11 @@ export function AdmissionWizard({
     if (currentStep !== 4 || isRedirectPaused || isModal || !submittedStudent) return;
 
     if (redirectCountdown <= 0) {
-      router.push('/worker/my-dashboard');
+      if (onComplete) {
+        onComplete();
+      } else {
+        router.push(role === 'ADMIN' ? '/admin/dashboard' : '/worker/my-dashboard');
+      }
       return;
     }
 
@@ -172,7 +180,7 @@ export function AdmissionWizard({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [currentStep, redirectCountdown, isRedirectPaused, isModal, submittedStudent, router]);
+  }, [currentStep, redirectCountdown, isRedirectPaused, isModal, submittedStudent, router, onComplete, role]);
 
   const scrollToTop = () => {
     containerTopRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -203,10 +211,11 @@ export function AdmissionWizard({
     }
 
     const cleanPhone = studentData.phone.replace(/\D/g, '');
+    const phone10 = cleanPhone.slice(-10);
     if (!studentData.phone.trim()) {
       errList.push('Mobile phone number is required');
       fieldMap.phone = 'Phone number is required';
-    } else if (cleanPhone.length !== 10) {
+    } else if (phone10.length !== 10) {
       errList.push('A valid 10-digit mobile phone number is required');
       fieldMap.phone = 'Must be exactly 10 digits';
     }
@@ -239,6 +248,13 @@ export function AdmissionWizard({
     if (!studentData.twelfthMarks.trim()) {
       errList.push('12th Marks / Percentage is required');
       fieldMap.twelfthMarks = '12th marks required';
+    }
+
+    const trimmedTwelfthYear = (studentData.twelfthYear || '').trim();
+    const twelfthYearNum = parseInt(trimmedTwelfthYear, 10);
+    if (trimmedTwelfthYear && (!/^\d{4}$/.test(trimmedTwelfthYear) || isNaN(twelfthYearNum) || twelfthYearNum < 1980 || twelfthYearNum > currentYear + 1)) {
+      errList.push(`12th Passing Year must be a valid 4-digit year (1980-${currentYear + 1})`);
+      fieldMap.twelfthYear = 'Valid 4-digit year required';
     }
 
     if (!studentData.session.trim()) {
@@ -290,7 +306,7 @@ export function AdmissionWizard({
     } else if (feeData.discount > (feeData.totalFee || 0)) {
       errList.push('Discount cannot exceed total course fee');
       fieldMap.discount = 'Cannot exceed total fee';
-    } else if (feeData.discount > 10000) {
+    } else if (role !== 'ADMIN' && feeData.discount > 10000) {
       errList.push('Worker discount cannot exceed ₹10,000 without Admin OTP');
       fieldMap.discount = 'Exceeds max allowed (₹10,000)';
     }
@@ -489,15 +505,17 @@ export function AdmissionWizard({
         email: studentData.email.trim(),
         phone: studentData.phone.trim(),
         course: studentData.course,
-        status: balanceDue === 0 ? 'Enrolled' : 'In Process',
+        status: balanceDue === 0 ? 'Enrolled' : 'Action Needed',
         date: `${nowFormatted}, ${new Date().toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
         })}`,
-        workerName: user?.email?.split('@')[0] || '',
+        workerId: user?.id || (role === 'ADMIN' ? 'ADM-01' : 'WK-01'),
+        workerName: user?.name || user?.email?.split('@')[0] || (role === 'ADMIN' ? 'Super Admin' : 'Counselor'),
         workerEmail: user?.email || '',
         worker: {
-          name: user?.email?.split('@')[0] || '',
+          id: user?.id || (role === 'ADMIN' ? 'ADM-01' : 'WK-01'),
+          name: user?.name || user?.email?.split('@')[0] || (role === 'ADMIN' ? 'Super Admin' : 'Counselor'),
           email: user?.email || '',
         },
         marks: {
@@ -867,7 +885,13 @@ export function AdmissionWizard({
             ) : (
               <Button
                 type="button"
-                onClick={() => router.push('/worker/my-dashboard')}
+                onClick={() => {
+                  if (onComplete) {
+                    onComplete();
+                  } else {
+                    router.push(role === 'ADMIN' ? '/admin/dashboard' : '/worker/my-dashboard');
+                  }
+                }}
                 className="w-full sm:w-auto h-10 px-6 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-2"
               >
                 View in My Dashboard

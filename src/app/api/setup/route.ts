@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS public.admissions (
   graduation_session TEXT,
   status TEXT DEFAULT 'Action Needed',
   balance_due NUMERIC DEFAULT 0,
-  total_fee NUMERIC DEFAULT 120000,
+  total_fee NUMERIC DEFAULT 0,
   discount NUMERIC DEFAULT 0,
   paid_amount NUMERIC DEFAULT 0,
   worker_id TEXT DEFAULT '',
@@ -126,11 +126,12 @@ ON CONFLICT (email) DO NOTHING;
 
 export async function POST(req: NextRequest) {
   try {
-    const { pat } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const pat = body.pat || process.env.SUPABASE_PAT;
 
     if (!pat || !pat.startsWith('sbp_')) {
       return NextResponse.json(
-        { error: 'Invalid Personal Access Token. It should start with sbp_' },
+        { error: 'Invalid Personal Access Token. It should start with sbp_ (or be set in SUPABASE_PAT env var)' },
         { status: 400 }
       );
     }
