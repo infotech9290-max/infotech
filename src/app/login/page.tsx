@@ -246,7 +246,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <Input
                     type="email"
-                    placeholder="e.g. infotech9290@gmail.com"
+                    placeholder="e.g. admin@institute.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     suppressHydrationWarning
