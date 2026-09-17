@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { UserPlus, Briefcase, TrendingUp, ChevronRight, CheckCircle2, Copy, Check, Trash2, KeyRound } from 'lucide-react';
+import { UserPlus, Briefcase, TrendingUp, ChevronRight, CheckCircle2, Copy, Check, Trash2, KeyRound, Loader2 } from 'lucide-react';
 
 interface WorkerCard {
   id: string;
@@ -26,6 +26,7 @@ export default function WorkersPage() {
   const [phone, setPhone] = useState('');
   const [designation, setDesignation] = useState('Admissions Counselor');
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [workers, setWorkers] = useState<WorkerCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [invitedPin, setInvitedPin] = useState<string | null>(null);
@@ -107,9 +108,10 @@ export default function WorkersPage() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) return;
+    if (!name.trim() || !email.trim() || isSubmitting) return;
 
-    // Generate a secure 6-digit PIN instead of 4 for better security
+    setIsSubmitting(true);
+    // Generate a secure 6-digit PIN
     const securePin = Math.floor(100000 + Math.random() * 900000).toString();
     
     try {
@@ -129,13 +131,16 @@ export default function WorkersPage() {
       
       if (!res.ok) {
         alert(data.error || 'Failed to create worker');
+        setIsSubmitting(false);
         return;
       }
 
-      setWorkers((prev) => (prev.length > 0 ? [prev[0], data.worker, ...prev.slice(1)] : [data.worker]));
+      await fetchWorkers(); // Instantly refresh workers from server so UI is 100% accurate
       setInvitedPin(securePin); // Show PIN in UI for admin to share
     } catch {
-      alert('Error creating worker');
+      alert('Error creating worker. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -146,6 +151,7 @@ export default function WorkersPage() {
     setEmail('');
     setPhone('');
     setDesignation('Admissions Counselor');
+    fetchWorkers();
   };
 
   const copyPin = () => {
@@ -295,8 +301,16 @@ export default function WorkersPage() {
                     />
                   </div>
                 </div>
-                <Button type="submit" className="w-full h-12 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all cursor-pointer mt-2">
-                  Generate Invite & PIN
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting || !name.trim() || !email.trim()}
+                  className="w-full h-12 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white shadow-md transition-all cursor-pointer mt-2 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <><Loader2 className="w-5 h-5 animate-spin mr-1" /> Generating Credentials & PIN...</>
+                  ) : (
+                    'Generate Invite & PIN'
+                  )}
                 </Button>
               </form>
             )}

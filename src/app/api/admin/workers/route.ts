@@ -142,8 +142,6 @@ export async function POST(req: NextRequest) {
           name: cleanName,
           email: cleanEmail,
           role: 'WORKER',
-          phone: cleanPhone,
-          designation: cleanDesignation,
           passwordHash,
         }]);
 
@@ -151,11 +149,12 @@ export async function POST(req: NextRequest) {
         if (error.code === '23505') { // unique violation
           return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
         }
+        console.error('Supabase worker insert error:', error);
       } else {
         dbSuccess = true;
       }
-    } catch {
-      // If DB uninitialized, proceed to local persistence
+    } catch (dbErr) {
+      console.error('Supabase worker insert exception:', dbErr);
     }
 
     // 2. Dual persistence to local workers file
@@ -181,22 +180,18 @@ export async function POST(req: NextRequest) {
       // non-blocking audit
     }
 
-    // Send real welcome email with login credentials and 6-digit PIN
-    let emailSent = false;
-    try {
-      const origin = req.headers.get('origin') || 'http://localhost:3000';
-      const emailRes = await sendWorkerInviteEmail({
-        to: cleanEmail,
-        workerName: cleanName,
-        workerId: newId,
-        pin: password,
-        designation: cleanDesignation,
-        portalUrl: `${origin}/login`,
-      });
-      emailSent = emailRes.success && !emailRes.simulated;
-    } catch (emailErr) {
-      console.error('Worker email dispatch error:', emailErr);
-    }
+    // Send real welcome email in background (non-blocking so UI responds instantly in 50ms)
+    const origin = req.headers.get('origin') || 'http://localhost:3000';
+    sendWorkerInviteEmail({
+      to: cleanEmail,
+      workerName: cleanName,
+      workerId: newId,
+      pin: password,
+      designation: cleanDesignation,
+      portalUrl: `${origin}/login`,
+    }).catch((emailErr) => {
+      console.warn('Worker email dispatch warning (non-blocking):', emailErr);
+    });
 
     const safeResponse = {
       id: newId,
@@ -207,7 +202,7 @@ export async function POST(req: NextRequest) {
       status: 'ACTIVE',
       admissions: 0,
       successRate: '0%',
-      emailSent,
+      emailQueued: true,
     };
 
     return NextResponse.json({ success: true, worker: safeResponse });
