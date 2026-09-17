@@ -47,6 +47,7 @@ export function StudentProfileModal({
 }: StudentProfileModalProps) {
   const [activeTab, setActiveTab] = useState<'fees' | 'documents' | 'payments'>('fees');
   const { role } = useAuth();
+  // Only show Admin Actions if the user is an Admin AND they are currently inside the Admin Panel
   const isAdmin = role === 'ADMIN';
   const [isSaving, setIsSaving] = useState(false);
 
@@ -81,7 +82,7 @@ export function StudentProfileModal({
       <html>
       <head>
         <meta charset="utf-8"/>
-        <title>INFO TECH Admission Slip - ${student.name}</title>
+        <title>Institute Admission Slip - ${student.name}</title>
         <style>
           * { box-sizing: border-box; }
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #0f172a; max-width: 800px; margin: 0 auto; }
@@ -105,7 +106,7 @@ export function StudentProfileModal({
       <body>
         <div class="header">
           <div>
-            <div class="brand">INFO <span>TECH</span></div>
+            <div class="brand">Admissions <span>Portal</span></div>
             <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Official Provisional Admission Confirmation Slip</div>
           </div>
           <div style="text-align: right;">
@@ -162,12 +163,12 @@ export function StudentProfileModal({
 
         <div style="font-size: 11px; color: #64748b; line-height: 1.6; margin-top: 15px;">
           <strong>Payment Verification:</strong> UTR #${student.payments?.[0]?.utr || 'Verified'} &bull; Payment Method: ${student.payments?.[0]?.paymentMethod || student.payments?.[0]?.method || 'UPI QR'}<br/>
-          <em>This is a computer-verified provisional admission voucher issued by INFO TECH Admission Management System.</em>
+          <em>This is a computer-verified provisional admission voucher issued by the Admissions Management System.</em>
         </div>
 
         <div class="footer">
           <div>
-            <div style="font-size: 12px; color: #334155; font-weight: bold;">INFO TECH Admissions Cell</div>
+            <div style="font-size: 12px; color: #334155; font-weight: bold;">Admissions Central Office</div>
             <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Attributed to Counselor: ${student.workerName}</div>
           </div>
           <div class="stamp">
@@ -189,8 +190,8 @@ export function StudentProfileModal({
     const cleanPhone = (student.phone || '').replace(/[^0-9]/g, '');
     const due = student.fees.balanceDue;
     const msg = due > 0
-      ? `Dear ${student.name}, this is a gentle reminder from INFO TECH regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please complete the payment or contact your counselor ${student.workerName}.`
-      : `Hello ${student.name}! Congratulations on your successful admission to INFO TECH (ID: #${student.id}) for ${student.course}. We are delighted to welcome you!`;
+      ? `Dear ${student.name}, this is a gentle reminder from our Admissions Office regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please complete the payment or contact your counselor ${student.workerName}.`
+      : `Hello ${student.name}! Congratulations on your successful admission (ID: #${student.id}) for ${student.course}. We are delighted to welcome you!`;
     window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -291,17 +292,18 @@ export function StudentProfileModal({
           </div>
         </DialogHeader>
 
-        {/* Admin Status Action Bar */}
+        {/* Admin Status & Quick Payment Action Bar */}
         {isAdmin && (
-          <div className="px-4 sm:px-6 py-3 bg-amber-50 border-b border-amber-100 shrink-0">
+          <div className="px-4 sm:px-6 py-3 bg-amber-50/90 border-b border-amber-200/80 shrink-0 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider mr-2">Admin Action:</span>
-              {(['In Process', 'Enrolled', 'Rejected', 'Cancelled'] as const).map((s) => {
+              <span className="text-xs font-bold text-amber-900 uppercase tracking-wider mr-1">Admin Status:</span>
+              {(['Action Needed', 'In Process', 'Enrolled', 'Rejected', 'Cancelled'] as const).map((s) => {
                 const colors: Record<string, string> = {
-                  'In Process': 'bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-200',
-                  'Enrolled':   'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-emerald-200',
-                  'Rejected':   'bg-rose-100 text-rose-800 hover:bg-rose-200 border-rose-200',
-                  'Cancelled':  'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200',
+                  'Action Needed': 'bg-amber-100 text-amber-900 hover:bg-amber-200 border-amber-300',
+                  'In Process':    'bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-200',
+                  'Enrolled':      'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-emerald-200',
+                  'Rejected':      'bg-rose-100 text-rose-800 hover:bg-rose-200 border-rose-200',
+                  'Cancelled':     'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200',
                 };
                 const isActive = student.status === s;
                 return (
@@ -320,19 +322,20 @@ export function StudentProfileModal({
                             balanceDue: student.fees?.balanceDue,
                           }),
                         });
-                        if (!res.ok) throw new Error('API update failed');
+                        if (!res.ok) throw new Error('Status update failed');
+                        if (onStatusUpdated) {
+                          onStatusUpdated({ ...student, status: s });
+                        }
+                        onOpenChange(false);
                       } catch (err) {
                         console.error('Failed to update student status:', err);
+                        alert('Failed to update status. Please try again.');
+                      } finally {
+                        setIsSaving(false);
                       }
-                      student.status = s;
-                      if (onStatusUpdated) {
-                        onStatusUpdated({ ...student, status: s });
-                      }
-                      setIsSaving(false);
-                      onOpenChange(false);
                     }}
                     className={[
-                      'px-4 py-1.5 rounded-full text-xs font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed',
+                      'px-3 py-1 rounded-full text-xs font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed',
                       isActive ? 'ring-2 ring-offset-1 ring-current opacity-70 cursor-default' : 'cursor-pointer',
                       colors[s],
                     ].join(' ')}
@@ -341,8 +344,54 @@ export function StudentProfileModal({
                   </button>
                 );
               })}
-              {isSaving && <span className="text-xs text-amber-600 font-semibold ml-2 animate-pulse">Saving...</span>}
+              {isSaving && <span className="text-xs text-amber-700 font-semibold ml-2 animate-pulse">Updating...</span>}
             </div>
+
+            {/* Quick Settle Balance Due Button */}
+            {student.fees.balanceDue > 0 && (
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={async () => {
+                  if (!confirm(`Collect full balance (₹${student.fees.balanceDue.toLocaleString('en-IN')}) and mark student as Enrolled?`)) return;
+                  setIsSaving(true);
+                  try {
+                    const res = await fetch('/api/admin/update-status', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        uniqueId: student.id,
+                        status: 'Enrolled',
+                        balanceDue: 0,
+                        paidAmount: student.fees.netFee,
+                      }),
+                    });
+                    if (!res.ok) throw new Error('Payment collection failed');
+                    if (onStatusUpdated) {
+                      onStatusUpdated({
+                        ...student,
+                        status: 'Enrolled',
+                        fees: {
+                          ...student.fees,
+                          balanceDue: 0,
+                          paidAmount: student.fees.netFee,
+                        },
+                      });
+                    }
+                    onOpenChange(false);
+                  } catch (err) {
+                    console.error('Failed to settle balance:', err);
+                    alert('Failed to update payment. Please try again.');
+                  } finally {
+                    setIsSaving(false);
+                  }
+                }}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1.5 ml-auto"
+                title="Settle full balance and enroll"
+              >
+                <span>✓ Settle Balance (₹{student.fees.balanceDue.toLocaleString('en-IN')})</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -420,7 +469,7 @@ export function StudentProfileModal({
             <Sparkles className="w-3.5 h-3.5 text-blue-600" />
             <span className="flex items-center gap-1.5 font-bold tracking-wide">
               <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              INFO TECH • Official Student Profile Dossier
+              Official Student Profile Dossier
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">

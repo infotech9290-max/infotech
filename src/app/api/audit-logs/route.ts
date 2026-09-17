@@ -1,28 +1,21 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '@/utils/supabaseServer';
-import { getLocalAuditLogs } from '@/utils/localStore';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    try {
-      const { data, error } = await supabaseServer
-        .from('audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabaseServer
+      .from('audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        return NextResponse.json({ data });
-      }
-    } catch (dbErr) {
-      console.warn('Supabase audit logs query skipped, using resilient store:', dbErr);
-    }
+    if (error) throw error;
 
-    const localLogs = await getLocalAuditLogs();
-    return NextResponse.json({ data: localLogs });
-  } catch (_err) {
-    const localLogs = await getLocalAuditLogs();
-    return NextResponse.json({ data: localLogs });
+    return NextResponse.json({ data: data || [] });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch audit logs';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

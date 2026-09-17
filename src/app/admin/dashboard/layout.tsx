@@ -35,6 +35,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { id: 'footprints', name: 'Audit Footprints',  icon: Footprints },
   ];
 
+  const [brandName, setBrandName] = useState('');
+
+  useEffect(() => {
+    fetch('/api/settings').then(res => res.json()).then(json => {
+      const name = json.data?.brand?.websiteName;
+      if (name) setBrandName(name);
+    }).catch(console.error);
+  }, []);
+
   // Keep currentTab synchronized with URL search params and custom events
   useEffect(() => {
     const syncFromUrl = () => {
@@ -48,6 +57,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
     syncFromUrl();
     window.addEventListener('popstate', syncFromUrl);
+    
     const onTabChange = (e: CustomEvent) => {
       if (e.detail && ['overview', 'workers', 'settings', 'footprints', 'admission'].includes(e.detail)) {
         setCurrentTab(e.detail);
@@ -55,9 +65,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     };
     window.addEventListener('admin-tab-change', onTabChange as EventListener);
 
+    const onBrandUpdate = (e: CustomEvent) => {
+      if (e.detail) {
+        setBrandName(e.detail);
+      }
+    };
+    window.addEventListener('brand-update', onBrandUpdate as EventListener);
+
     return () => {
       window.removeEventListener('popstate', syncFromUrl);
       window.removeEventListener('admin-tab-change', onTabChange as EventListener);
+      window.removeEventListener('brand-update', onBrandUpdate as EventListener);
     };
   }, []);
 
@@ -90,8 +108,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   <GraduationCap className="w-6 h-6" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none">
-                    INFO <span className="text-blue-600">TECH</span>
+                  <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none uppercase">
+                    {(brandName || 'Admissions Portal').split(' ')[0]} <span className="text-blue-600">{(brandName || 'Admissions Portal').split(' ').slice(1).join(' ')}</span>
                   </h1>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
                     Admin Command Portal
@@ -123,25 +141,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 })}
               </nav>
 
-              {/* Right Side: Direct Admission + Switch Worker + Logout */}
+              {/* Right Side: Switch Worker + Logout */}
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                {/* Single Primary Direct Admission Button */}
-                <button
-                  type="button"
-                  onClick={() => switchTab('admission')}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95",
-                    currentTab === 'admission'
-                      ? "bg-blue-700 text-white ring-2 ring-blue-400"
-                      : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25"
-                  )}
-                  title="Direct Candidate Admission"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">+ Direct Admission</span>
-                  <span className="sm:hidden">+ Admission</span>
-                </button>
-
                 {/* Switch to Worker View */}
                 <Link
                   href="/worker/my-dashboard"

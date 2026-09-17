@@ -49,7 +49,7 @@ export interface PaymentRecord {
   id: string;
   amount: number;            // e.g. 45000
   date: string;              // e.g. "14 Oct 2026, 10:30 AM"
-  method: PaymentMethod;     // e.g. "UPI QR"
+  method: PaymentMethod;     
   paymentMethod?: PaymentMethod | string; // alias
   utr: string;               // e.g. "UPI-329482930192"
   bankDetails: string;       // e.g. "HDFC Bank (Boss Official A/C)"
@@ -60,7 +60,7 @@ export interface PaymentRecord {
 export interface DocumentRecord {
   id: string;
   title: string;             // e.g. "Consolidated Admission Dossier (PDF)"
-  fileName: string;          // e.g. "Rahul_Sharma_Academic_Records.pdf"
+  fileName: string;          
   fileSize: string;          // e.g. "2.4 MB"
   uploadDate: string;        // e.g. "14 Oct 2026"
   url: string;
@@ -71,15 +71,15 @@ export interface DocumentRecord {
 
 export interface Student {
   id: string;                // e.g. "STU-9X82-KPL"
-  name: string;              // e.g. "Rahul Sharma"
+  name: string;              
   fatherName?: string;       // optional father name
   email: string;             // e.g. "rahul.sharma@example.com"
   phone: string;             // e.g. "+91 98765 43210"
-  course: string;            // e.g. "BCA"
+  course: string;            
   status: StudentStatus;     // 'Action Needed' | 'In Process' | 'Enrolled' | 'Rejected' | 'Cancelled'
   date: string;              // e.g. "14 Oct 2026, 10:30 AM"
   registrationDate?: string; // registration ISO or date string
-  workerName: string;        // e.g. "Ramesh Kumar"
+  workerName: string;        
   workerEmail: string;       // e.g. "ramesh@company.com"
   worker?: {
     name: string;

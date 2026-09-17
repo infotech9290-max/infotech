@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 export const viewport = { themeColor: "#0ea5e9" };
 
 export const metadata: Metadata = {
-  title: "INFO TECH Portal",
-  description: "INFO TECH — Professional Admission Management System"
+  title: "Admission Portal",
+  description: "Admission — Professional Admission Management System"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -7,122 +7,80 @@ import { Button } from '@/components/ui/button';
 import { StudentList } from '@/components/dashboard/StudentList';
 import { StudentProfileModal } from '@/components/profile/StudentProfileModal';
 import { Student } from '@/types/student';
-import { MOCK_STUDENTS } from '@/data/mockStudents';
 import { mapDbRecordToStudent, DbAdmissionRecord } from '@/utils/studentMapper';
 
 interface WorkerInfo {
+  id: string;
   name: string;
   email: string;
   status: string;
-  phone: string;
 }
 
 export default function WorkerDrilldownPage() {
   const params = useParams();
   const router = useRouter();
-  const rawWorkerId = params.workerId as string;
-  const decodedName = decodeURIComponent(rawWorkerId).replace(/-/g, ' ');
-  const workerFirstName = decodedName.split(' ')[0].toLowerCase();
+  const workerId = decodeURIComponent(params.workerId as string);
 
-  const worker: WorkerInfo = {
-    name: decodedName,
-    email: `${decodedName.split(' ')[0].toLowerCase()}@infotech.pro`,
+  // Real worker info fetched from DB
+  const [worker, setWorker] = useState<WorkerInfo>({
+    id: workerId,
+    name: workerId,
+    email: '',
     status: 'ACTIVE',
-    phone: '+91 98765 43210',
-  };
-  
+  });
+
   const [students, setStudents] = useState<Student[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   useEffect(() => {
-    const fetchWorkerStudents = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
-        let records: DbAdmissionRecord[] = [];
-        try {
-          const res = await fetch('/api/admissions');
-          if (res.ok) {
-            const json = await res.json();
-            if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-              records = json.data as DbAdmissionRecord[];
-            }
-          }
-        } catch (fetchErr) {
-          console.warn('Could not fetch from /api/admissions:', fetchErr);
-        }
-
-        let workerStudents: Student[] = [];
-
-        const isTargetBoss = workerFirstName.includes('super') || workerFirstName.includes('admin') || workerFirstName.includes('boss');
-
-        if (records.length > 0) {
-          const mapped: Student[] = records.map(mapDbRecordToStudent);
-          workerStudents = mapped.filter((s) => {
-            const wName = s.workerName.toLowerCase();
-            if (isTargetBoss) {
-              return wName.includes('admin') || wName.includes('boss') || wName.includes('director');
-            }
-            return wName.includes(workerFirstName);
-          });
-        }
-
-        // If no records from database matched for this worker, fallback to MOCK_STUDENTS
-        if (workerStudents.length === 0) {
-          const mockWorkerStudents = MOCK_STUDENTS.filter((s) => {
-            const wName = s.workerName.toLowerCase();
-            if (isTargetBoss) {
-              return wName.includes('admin') || wName.includes('boss') || wName.includes('director');
-            }
-            return wName.includes(workerFirstName);
-          });
-
-          if (mockWorkerStudents.length > 0) {
-            workerStudents = mockWorkerStudents;
-          } else {
-            // For newly invited or custom workers without pre-assigned mock records,
-            // dynamically synthesize realistic candidate registrations assigned to this worker
-            workerStudents = [
-              mapDbRecordToStudent({
-                unique_id: `STU-${Math.floor(10000 + Math.random() * 90000)}-WK`,
-                student_name: `${decodedName.split(' ')[0]}'s Candidate`,
-                graduation_course: 'BCA',
-                status: 'ENROLLED',
-                worker_name: decodedName,
-                worker_email: worker.email,
-                balance_due: 0,
-                tenth_marks: '88%',
-                tenth_school: 'Delhi Public School',
-                tenth_year: '2022',
-                twelfth_details: '84%',
-                payment_method: 'UPI QR',
-                payment_utr: `UPI-${Date.now().toString().slice(-10)}`,
-                created_at: new Date().toISOString(),
-              }),
-            ];
+        // 1. Fetch real worker info from DB
+        const workersRes = await fetch('/api/admin/workers');
+        if (workersRes.ok) {
+          const workersJson = await workersRes.json();
+          const allWorkers = workersJson.workers || [];
+          const found = allWorkers.find(
+            (w: any) => w.id === workerId || w.email === workerId
+          );
+          if (found) {
+            setWorker({
+              id: found.id,
+              name: found.name,
+              email: found.email,
+              status: 'ACTIVE',
+            });
           }
         }
 
-        setStudents(workerStudents);
+        // 2. Fetch admissions filtered by worker ID
+        const admRes = await fetch(`/api/admissions?workerId=${encodeURIComponent(workerId)}`);
+        if (admRes.ok) {
+          const admJson = await admRes.json();
+          const records: DbAdmissionRecord[] = admJson.data || [];
+          setStudents(records.map(mapDbRecordToStudent));
+        }
       } catch (err) {
-        console.error('Error fetching worker admissions:', err);
-        const mockFiltered = MOCK_STUDENTS.filter((s) =>
-          s.workerName.toLowerCase().includes(workerFirstName)
-        );
-        setStudents(mockFiltered.length > 0 ? mockFiltered : MOCK_STUDENTS.slice(0, 3));
+        console.error('Error fetching worker drilldown data:', err);
+        setStudents([]);
       } finally {
         setIsLoading(false);
       }
     };
-    
-    fetchWorkerStudents();
-  }, [decodedName, workerFirstName, worker.email]);
+
+    fetchData();
+  }, [workerId]);
 
   const enrolledCount = students.filter((s: Student) => s.status === 'Enrolled').length;
+  const successRate = students.length > 0
+    ? Math.round((enrolledCount / students.length) * 100)
+    : 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500">
-      
+
       {/* Back Button & Header */}
       <div className="flex items-center gap-4 mb-4">
         <Button variant="outline" className="h-10 w-10 p-0 rounded-xl bg-white border-slate-200 cursor-pointer hover:bg-slate-50" onClick={() => router.push('/admin/dashboard?tab=workers')}>
@@ -136,20 +94,24 @@ export default function WorkerDrilldownPage() {
         </div>
       </div>
 
-      {/* Worker Hero Profile */}
+      {/* Worker Hero Profile — Real Data Only */}
       <div className="bg-slate-900 rounded-3xl p-8 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 blur-[100px] rounded-full" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-          
+
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-400 to-emerald-400 p-1 shadow-lg shadow-blue-500/30">
               <div className="w-full h-full bg-slate-900 rounded-xl flex items-center justify-center text-3xl font-black text-white">
-                {worker.name.split(' ').map((n: string) => n[0]).join('')}
+                {(worker.name || 'W').split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
             </div>
             <div>
               <h2 className="text-3xl font-black text-white tracking-tight">{worker.name}</h2>
-              <p className="text-blue-400 font-medium mt-1">{worker.email} • {worker.phone}</p>
+              <p className="text-blue-400 font-medium mt-1">
+                {worker.email || worker.id}
+                {' • '}
+                <span className="text-emerald-400">ID: {worker.id}</span>
+              </p>
             </div>
           </div>
 
@@ -162,6 +124,11 @@ export default function WorkerDrilldownPage() {
             <div className="text-center px-4">
               <p className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-1">Enrolled</p>
               <p className="text-3xl font-black text-emerald-300">{enrolledCount}</p>
+            </div>
+            <div className="w-px h-12 bg-slate-700" />
+            <div className="text-center px-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-1">Success Rate</p>
+              <p className="text-3xl font-black text-blue-300">{successRate}%</p>
             </div>
           </div>
 
@@ -187,17 +154,21 @@ export default function WorkerDrilldownPage() {
               ))}
             </div>
           </div>
+        ) : students.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
+            <p className="text-slate-400 font-medium">No admissions found for this worker.</p>
+          </div>
         ) : (
-          <StudentList 
-            students={students} 
-            onSelectStudent={(s) => setSelectedStudent(s)} 
+          <StudentList
+            students={students}
+            onSelectStudent={(s) => setSelectedStudent(s)}
             activeStatusFilter="ALL"
             onFilterChange={() => {}}
           />
         )}
       </div>
 
-      {/* Profile Modal reused perfectly */}
+      {/* Profile Modal */}
       <StudentProfileModal
         open={Boolean(selectedStudent)}
         onOpenChange={(open) => { if (!open) setSelectedStudent(null); }}

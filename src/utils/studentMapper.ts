@@ -7,7 +7,6 @@ import {
   DocumentRecord,
   FeeSummary,
 } from '@/types/student';
-import { COURSES } from '@/components/admission/StepStudentDetails';
 
 export interface DbAdmissionRecord {
   id?: string;
@@ -27,6 +26,9 @@ export interface DbAdmissionRecord {
   payment_method?: string;
   payment_utr?: string;
   payment_screenshot_url?: string;
+  dossier_pdf_url?: string;
+  tenth_marksheet_url?: string;
+  twelfth_marksheet_url?: string;
   created_at: string;
   status?: string;
   balance_due?: number | string;
@@ -70,46 +72,16 @@ export function normalizePaymentMethod(rawMethod?: string): PaymentMethod {
   return 'UPI QR';
 }
 
-/**
- * Determines default course fee from COURSES array or course name
- */
-export function getCourseDefaultFee(courseName?: string): number {
-  if (!courseName) return 120000;
-  const match = COURSES.find(
-    (c) =>
-      c.code.toLowerCase() === courseName.toLowerCase() ||
-      c.name.toLowerCase().includes(courseName.toLowerCase()) ||
-      courseName.toLowerCase().includes(c.code.toLowerCase())
-  );
-  if (match) return match.defaultFee;
-
-  const lower = courseName.toLowerCase();
-  if (lower.includes('b.tech') || lower.includes('btech')) return 240000;
-  if (lower.includes('mba')) return 200000;
-  if (lower.includes('mca')) return 160000;
-  if (lower.includes('bba')) return 130000;
-  if (lower.includes('b.com') || lower.includes('bcom')) return 90000;
-  return 120000;
-}
+// getCourseDefaultFee removed
 
 /**
- * Derives a consistent Indian phone number from student ID / name for display
- */
-function derivePhoneNumber(id: string, name: string): string {
-  const seed = (id + name).split('').reduce((acc, char) => acc * 31 + char.charCodeAt(0), 0);
-  const part1 = 98000 + (Math.abs(seed) % 1999);
-  const part2 = 10000 + (Math.floor(Math.abs(seed) / 1000) % 89999);
-  return `+91 ${part1} ${part2}`;
-}
-
-/**
- * Formats a Date object or ISO string to standard UK format: "14 Oct 2026, 10:30 AM"
+ * Formats a Date object or ISO string to standard UK format
  */
 function formatTimestamp(isoString: string): { full: string; dateOnly: string } {
   try {
     const d = new Date(isoString);
     if (isNaN(d.getTime())) {
-      return { full: '14 Oct 2026, 10:30 AM', dateOnly: '14 Oct 2026' };
+      return { full: '', dateOnly: '' };
     }
     const dateOnly = d.toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -122,7 +94,7 @@ function formatTimestamp(isoString: string): { full: string; dateOnly: string } 
     });
     return { full: `${dateOnly}, ${timeOnly}`, dateOnly };
   } catch {
-    return { full: '14 Oct 2026, 10:30 AM', dateOnly: '14 Oct 2026' };
+    return { full: '', dateOnly: '' };
   }
 }
 
@@ -131,62 +103,32 @@ function formatTimestamp(isoString: string): { full: string; dateOnly: string } 
  * Guarantees that fees, payments, documents, and installments are 100% populated with real transaction data.
  */
 export function mapDbRecordToStudent(dbRec: DbAdmissionRecord): Student {
-  const studentId = dbRec.unique_id || dbRec.id || `STU-${Math.floor(10000 + Math.random() * 90000)}-AX`;
-  const studentName = dbRec.student_name || 'Candidate';
+  const studentId = dbRec.unique_id || dbRec.id || 'N/A';
+  const studentName = dbRec.student_name || 'N/A';
   const status = normalizeStudentStatus(dbRec.status);
-  const course = dbRec.graduation_course || 'BCA';
-  const { full: formattedDate, dateOnly: formattedDateOnly } = formatTimestamp(dbRec.created_at);
+  const course = dbRec.graduation_course || 'N/A';
+  const { full: formattedDate, dateOnly: formattedDateOnly } = formatTimestamp(dbRec.created_at || new Date().toISOString());
 
-  const workerName = dbRec.worker_name || 'Agent Ramesh';
-  const workerSlug = workerName.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-  const workerEmail = dbRec.worker_email || `${workerSlug}@infotech.pro`;
+  const workerName = dbRec.worker_name || 'N/A';
+  const workerEmail = dbRec.worker_email || 'N/A';
 
-  // Dynamic email & phone
-  const studentEmail =
-    dbRec.email ||
-    `${studentName.toLowerCase().trim().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '')}@student.infotech.pro`;
-  const studentPhone = dbRec.phone || derivePhoneNumber(studentId, studentName);
+  const studentEmail = dbRec.email || '';
+  const studentPhone = dbRec.phone || '';
 
-  // Marks & Academic details
-  const tenthMarks = dbRec.tenth_marks || '85%';
-  const tenthYear = dbRec.tenth_year || '2022';
-  const tenthSchool = dbRec.tenth_school || 'Delhi Public School';
-  const twelfthMarks = dbRec.twelfth_details || '80%';
-  const twelfthYear = dbRec.twelfth_year || (tenthYear ? String(Number(tenthYear) + 2) : '2024');
-  const twelfthStream = dbRec.twelfth_stream || 'Science (PCM)';
+  const tenthMarks = dbRec.tenth_marks || '';
+  const tenthYear = dbRec.tenth_year || '';
+  const tenthSchool = dbRec.tenth_school || '';
+  const twelfthMarks = dbRec.twelfth_details || '';
+  const twelfthYear = dbRec.twelfth_year || '';
+  const twelfthStream = dbRec.twelfth_stream || '';
 
-  // Financial structure calculations
-  const defaultTuition = getCourseDefaultFee(course);
-  const totalFee = dbRec.total_fee ? Number(dbRec.total_fee) : defaultTuition;
-
-  let discount = dbRec.discount !== undefined ? Number(dbRec.discount) : 0;
-  if (!dbRec.discount && status === 'Enrolled' && totalFee >= 120000) {
-    discount = 15000; // Merit scholarship applied
-  }
+  const totalFee = dbRec.total_fee ? Number(dbRec.total_fee) : 0;
+  const discount = dbRec.discount ? Number(dbRec.discount) : 0;
   const netFee = Math.max(0, totalFee - discount);
+  
+  const balanceDue = dbRec.balance_due ? Number(dbRec.balance_due) : 0;
+  const paidAmount = dbRec.paid_amount ? Number(dbRec.paid_amount) : Math.max(0, netFee - balanceDue);
 
-  let balanceDue: number;
-  let paidAmount: number;
-
-  if (dbRec.balance_due !== undefined && dbRec.balance_due !== null && !isNaN(Number(dbRec.balance_due))) {
-    balanceDue = Math.min(netFee, Math.max(0, Number(dbRec.balance_due)));
-    paidAmount = Math.max(0, netFee - balanceDue);
-  } else if (status === 'Enrolled') {
-    balanceDue = 0;
-    paidAmount = netFee;
-  } else if (status === 'Rejected') {
-    balanceDue = netFee;
-    paidAmount = 0;
-  } else if (status === 'Cancelled') {
-    paidAmount = Math.min(netFee, 20000);
-    balanceDue = netFee - paidAmount;
-  } else {
-    // In Process / Action Needed
-    paidAmount = Math.round(netFee * 0.4);
-    balanceDue = netFee - paidAmount;
-  }
-
-  // Ensure strict non-negativity and consistency
   const feeSummary: FeeSummary = {
     totalFee,
     discount,
@@ -195,163 +137,78 @@ export function mapDbRecordToStudent(dbRec: DbAdmissionRecord): Student {
     balanceDue,
   };
 
-  // Payment method & real transaction data
   const paymentMethod = normalizePaymentMethod(dbRec.payment_method);
-  const cleanId = studentId.replace(/[^a-zA-Z0-9]/g, '');
-  const realUtr = dbRec.payment_utr?.trim() || `UPI-${cleanId}9201`;
-  const receivingBank =
-    paymentMethod === 'Bank Transfer'
-      ? 'HDFC Bank (Admissions Treasury A/C #9821034)'
-      : paymentMethod === 'Cash'
-      ? 'Admissions Cash Desk (Treasury Counter)'
-      : 'ICICI Bank (boss@icici)';
-  const screenshotUrl = dbRec.payment_screenshot_url || '/receipt-qr.png';
+  const realUtr = dbRec.payment_utr?.trim() || '';
+  const receivingBank = 'N/A';
+  const screenshotUrl = dbRec.payment_screenshot_url || '';
   const isVerified = status === 'Enrolled' || status === 'In Process' || Boolean(dbRec.payment_utr);
 
-  // Construct Payments Array (Fully populated real transaction data)
   const payments: PaymentRecord[] = [];
-  if (paidAmount > 0) {
-    if (paidAmount > 70000 && status === 'Enrolled') {
-      // Multi-transaction history for enrolled students with larger settlements
-      const firstAmount = Math.round(paidAmount * 0.6);
-      const secondAmount = paidAmount - firstAmount;
-      payments.push(
-        {
-          id: `PMT-${cleanId}-01`,
-          amount: firstAmount,
-          date: formattedDate,
-          method: paymentMethod,
-          utr: realUtr,
-          bankDetails: receivingBank,
-          screenshotUrl,
-          verified: true,
-        },
-        {
-          id: `PMT-${cleanId}-02`,
-          amount: secondAmount,
-          date: formattedDate,
-          method: 'Bank Transfer',
-          utr: `HDFC-RTGS-${cleanId}02`,
-          bankDetails: 'HDFC Bank (Admissions Treasury A/C #9821034)',
-          screenshotUrl,
-          verified: true,
-        }
-      );
-    } else {
-      // Single transaction
-      payments.push({
-        id: `PMT-${cleanId}-01`,
-        amount: paidAmount,
-        date: formattedDate,
-        method: paymentMethod,
-        utr: realUtr,
-        bankDetails: receivingBank,
-        screenshotUrl,
-        verified: isVerified,
-      });
-    }
-  } else {
-    // If paid amount is 0 (e.g. initial lead or rejected), add the pending submission record with audit state
+  if (paidAmount > 0 || realUtr) {
     payments.push({
-      id: `PMT-${cleanId}-PENDING`,
-      amount: Math.round(netFee * 0.25),
+      id: `PMT-${studentId}`,
+      amount: paidAmount,
       date: formattedDate,
       method: paymentMethod,
-      utr: dbRec.payment_utr?.trim() || `PENDING-AUDIT-${cleanId}`,
+      utr: realUtr,
       bankDetails: receivingBank,
       screenshotUrl,
-      verified: false,
+      verified: isVerified,
     });
   }
 
-  // Construct Installments Schedule (Connected timeline)
   const installments: InstallmentRecord[] = [];
-  if (paidAmount > 0) {
+  if (balanceDue > 0) {
     installments.push({
-      id: `INST-${cleanId}-01`,
-      title: '1st Installment (At Admission)',
-      dueDate: formattedDateOnly,
-      amount: paidAmount,
-      status: 'PAID',
-      paidDate: formattedDate,
+      id: `INST-${studentId}-BAL`,
+      title: 'Remaining Balance',
+      dueDate: 'TBD',
+      amount: balanceDue,
+      status: 'PENDING',
     });
-    if (balanceDue > 0) {
-      const isOverdue = status === 'Action Needed';
-      installments.push({
-        id: `INST-${cleanId}-02`,
-        title: '2nd Installment (Scheduled)',
-        dueDate: isOverdue ? '10 Sep 2026' : '15 Dec 2026',
-        amount: balanceDue,
-        status: isOverdue ? 'OVERDUE' : 'PENDING',
-      });
-    }
-  } else {
-    const isOverdue = status === 'Action Needed';
-    const firstPortion = Math.round(netFee * 0.5);
-    installments.push(
-      {
-        id: `INST-${cleanId}-01`,
-        title: '1st Installment (At Admission)',
-        dueDate: isOverdue ? '10 Sep 2026' : '15 Dec 2026',
-        amount: firstPortion,
-        status: isOverdue ? 'OVERDUE' : 'PENDING',
-      },
-      {
-        id: `INST-${cleanId}-02`,
-        title: '2nd Installment (Final Balance)',
-        dueDate: '15 Jan 2027',
-        amount: netFee - firstPortion,
-        status: 'PENDING',
-      }
-    );
   }
 
-  // Construct Documents Array (Consolidated Dossier + Sub-Certificates)
-  const safeFilePrefix = studentName.replace(/\s+/g, '_');
-  const documents: DocumentRecord[] = [
-    {
-      id: `DOC-${cleanId}-DOSSIER`,
-      title: 'Consolidated Admission Dossier (PDF)',
-      fileName: `${safeFilePrefix}_Admission_Dossier.pdf`,
-      fileSize: '3.2 MB',
+  const documents: DocumentRecord[] = [];
+  if (dbRec.dossier_pdf_url) {
+    documents.push({
+      id: `DOC-DOSSIER-1`,
+      title: 'Consolidated Academic Dossier (Single PDF)',
+      fileName: `${studentName.replace(/\s+/g, '_')}_Dossier.pdf`,
+      fileSize: 'File',
       uploadDate: formattedDateOnly,
-      url: dbRec.photo_url || '#',
+      url: dbRec.dossier_pdf_url,
       type: 'PDF',
-      verified: true,
-      checklistItems: [
-        `Class 10 Marksheet & Passing Certificate (${tenthMarks})`,
-        `Class 12 Marksheet & Passing Certificate (${twelfthMarks})`,
-        'Government Identity Proof (Aadhaar Card Verified)',
-        'Transfer Certificate & Migration Certificate',
-        'Passport Size Color Photographs (Attested)',
-      ],
-    },
-    {
-      id: `DOC-${cleanId}-10TH`,
-      title: 'Class X Passing Certificate & Marksheet',
-      fileName: `${safeFilePrefix}_10th_Certificate.pdf`,
-      fileSize: '1.2 MB',
+    });
+  }
+
+  if (dbRec.tenth_marksheet_url) {
+    documents.push({
+      id: `DOC-10TH-1`,
+      title: '10th Standard Marksheet',
+      fileName: `${studentName.replace(/\s+/g, '_')}_10th_Marksheet.jpg`,
+      fileSize: 'File',
       uploadDate: formattedDateOnly,
-      url: '#',
-      type: 'PDF',
-      verified: true,
-    },
-    {
-      id: `DOC-${cleanId}-ID`,
-      title: 'Government Identity Proof (Aadhaar Card)',
-      fileName: `${safeFilePrefix}_Aadhaar_Card.pdf`,
-      fileSize: '780 KB',
+      url: dbRec.tenth_marksheet_url,
+      type: 'IMAGE',
+    });
+  }
+
+  if (dbRec.twelfth_marksheet_url) {
+    documents.push({
+      id: `DOC-12TH-1`,
+      title: '12th Standard Marksheet',
+      fileName: `${studentName.replace(/\s+/g, '_')}_12th_Marksheet.jpg`,
+      fileSize: 'File',
       uploadDate: formattedDateOnly,
-      url: dbRec.photo_url || '#',
-      type: 'PDF',
-      verified: true,
-    },
-  ];
+      url: dbRec.twelfth_marksheet_url,
+      type: 'IMAGE',
+    });
+  }
 
   return {
     id: studentId,
     name: studentName,
-    fatherName: dbRec.father_name || undefined,
+    fatherName: dbRec.father_name || '',
     email: studentEmail,
     phone: studentPhone,
     course,
@@ -376,7 +233,7 @@ export function mapDbRecordToStudent(dbRec: DbAdmissionRecord): Student {
       twelfthYear,
       twelfthStream,
       graduationCourse: course,
-      graduationSession: dbRec.graduation_session || '2026-2029',
+      graduationSession: dbRec.graduation_session || '',
     },
     fees: {
       ...feeSummary,

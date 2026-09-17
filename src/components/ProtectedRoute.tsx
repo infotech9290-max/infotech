@@ -34,7 +34,7 @@ export function ProtectedRoute({
             <ShieldCheck className="w-8 h-8 text-white" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold tracking-tight text-white">INFO TECH SECURITY</h1>
+            <h1 className="text-xl font-bold tracking-tight text-white">PORTAL SECURITY</h1>
             <p className="text-xs text-slate-400 mt-1">Verifying Access Credentials...</p>
           </div>
           <Loader2 className="w-6 h-6 text-blue-400 animate-spin mt-2" />

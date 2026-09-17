@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, UserCheck, Lock, ArrowRight, Sparkles, KeyRound } from 'lucide-react';
-import { useAuth, ADMIN_USER, WORKER_USER } from '@/context/AuthContext';
+import { ShieldCheck, ArrowRight, Sparkles, KeyRound, Mail, Lock } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,197 +12,177 @@ import { Label } from '@/components/ui/label';
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [activeTab, setActiveTab] = useState<'ADMIN' | 'WORKER'>('ADMIN');
-
-  // Admin form
-  const [adminPin, setAdminPin] = useState('');
-  // Worker form
-  const [workerName, setWorkerName] = useState('Agent Ramesh');
-  const [workerPin, setWorkerPin] = useState('');
+  
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false); // Toggle for OTP recovery UI
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setIsAuthenticating(true);
 
-    // Secure authentication with instant bypass for demo
-    setTimeout(() => {
-      login('ADMIN', ADMIN_USER);
-      router.push('/admin/dashboard');
-    }, 400);
-  };
+    try {
+      if (!email.includes('@')) {
+        setErrorMsg('Invalid email format');
+        setIsAuthenticating(false);
+        return;
+      }
 
-  const handleWorkerLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    setIsAuthenticating(true);
-
-    setTimeout(() => {
-      const cleanName = workerName.trim() || 'Agent Ramesh';
-      const cleanSlug = cleanName.split(' ')[0].toLowerCase();
-      login('WORKER', {
-        id: 'WK-001',
-        name: cleanName,
-        email: `${cleanSlug}@infotech.pro`,
-        role: 'WORKER',
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
-      router.push('/worker/my-dashboard');
-    }, 400);
+
+      const data = await res.json();
+
+      if (res.ok && data.success && data.user) {
+        login(data.user.role, data.user);
+      } else {
+        setErrorMsg(data.error || 'Invalid credentials');
+        setIsAuthenticating(false);
+      }
+    } catch (err) {
+      setErrorMsg('An error occurred during login. Please try again.');
+      setIsAuthenticating(false);
+    }
   };
+
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 relative overflow-hidden font-sans p-4">
-      {/* Dynamic Apple-style background blur orbs */}
-      <div className="absolute top-[-15%] left-[-10%] w-[50%] h-[50%] rounded-full bg-gradient-to-br from-blue-400/25 to-indigo-400/25 blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] rounded-full bg-gradient-to-tl from-emerald-400/20 to-teal-400/20 blur-[140px] pointer-events-none" />
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 relative overflow-hidden font-sans p-4">
+      {/* Dynamic background blur orbs for stealthy high-tech look */}
+      <div className="absolute top-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[10%] right-[20%] w-[40%] h-[40%] rounded-full bg-emerald-600/10 blur-[120px] pointer-events-none" />
 
       <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md bg-white/85 backdrop-blur-2xl rounded-3xl sm:rounded-[2.5rem] shadow-2xl border border-white/80 p-8 sm:p-10 relative z-10 space-y-7"
+        className="w-full max-w-md bg-slate-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl border border-slate-700 p-8 sm:p-10 relative z-10"
       >
-        {/* Brand Header */}
-        <div className="text-center space-y-3">
+        {/* Stealth Header */}
+        <div className="text-center space-y-3 mb-8">
           <div className="flex justify-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/30">
-              <ShieldCheck className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 bg-gradient-to-br from-slate-700 to-slate-800 rounded-2xl flex items-center justify-center shadow-lg border border-slate-600">
+              <ShieldCheck className="w-8 h-8 text-blue-400" />
             </div>
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">INFO TECH</h1>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-              Enterprise Admission Management Network
+            <h1 className="text-2xl font-black text-white tracking-tight">SYSTEM LOGIN</h1>
+            <p className="text-xs text-slate-400 font-medium mt-1">
+              Secure Authentication Gateway
             </p>
           </div>
         </div>
 
-        {/* Role Toggle Switch */}
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1 border border-slate-200/80">
-          <button
-            type="button"
-            onClick={() => { setActiveTab('ADMIN'); setErrorMsg(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'ADMIN'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5 text-blue-600" />
-            Super Admin
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveTab('WORKER'); setErrorMsg(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'WORKER'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-            Admissions Agent
-          </button>
-        </div>
-
         {/* Forms Container */}
         <AnimatePresence mode="wait">
-          {activeTab === 'ADMIN' ? (
+          {!isForgotPassword ? (
             <motion.form
-              key="admin-form"
+              key="login-form"
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
               transition={{ duration: 0.2 }}
-              onSubmit={handleAdminLogin}
-              className="space-y-4"
+              onSubmit={handleLogin}
+              className="space-y-5"
             >
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Admin Passkey
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Email Address
                 </Label>
                 <div className="relative">
                   <Input
-                    type="password"
-                    placeholder="Enter security key (or click Enter)"
-                    value={adminPin}
-                    onChange={(e) => setAdminPin(e.target.value)}
-                    className="h-12 rounded-xl pr-10 border-slate-200 focus-visible:ring-blue-500"
+                    type="email"
+                    placeholder="Enter your registered email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-12 bg-slate-900/50 border-slate-600 text-white pl-10 focus-visible:ring-blue-500 rounded-xl"
+                    required
                   />
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute right-3.5 top-4 pointer-events-none" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-4 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Password
+                  </Label>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsForgotPassword(true)}
+                    className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    type="password"
+                    placeholder="Enter your security password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-12 bg-slate-900/50 border-slate-600 text-white pl-10 focus-visible:ring-blue-500 rounded-xl"
+                    required
+                  />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-4 pointer-events-none" />
                 </div>
               </div>
 
               <Button
                 type="submit"
                 disabled={isAuthenticating}
-                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 mt-2"
               >
-                {isAuthenticating ? 'Authorizing Session...' : 'Enter Admin Control Room'}
+                {isAuthenticating ? 'Authenticating...' : 'Secure Login'}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </motion.form>
           ) : (
-            <motion.form
-              key="worker-form"
+            <motion.div
+              key="forgot-form"
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              onSubmit={handleWorkerLogin}
-              className="space-y-4"
+              className="space-y-5"
             >
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Agent Name / ID
-                </Label>
-                <Input
-                  type="text"
-                  placeholder="e.g. Agent Ramesh"
-                  value={workerName}
-                  onChange={(e) => setWorkerName(e.target.value)}
-                  className="h-12 rounded-xl border-slate-200 focus-visible:ring-emerald-500"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Fleet PIN
-                </Label>
-                <Input
-                  type="password"
-                  placeholder="4-digit Invite PIN (or any pin)"
-                  value={workerPin}
-                  onChange={(e) => setWorkerPin(e.target.value)}
-                  className="h-12 rounded-xl border-slate-200 focus-visible:ring-emerald-500"
-                />
+              <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/60 text-center space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mx-auto mb-2">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <h3 className="text-sm font-bold text-white">Password Recovery</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  For security reasons, worker credentials are managed directly by the Super Administrator. Please contact your admin to reset your credentials.
+                </p>
               </div>
 
               <Button
-                type="submit"
-                disabled={isAuthenticating}
-                className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                type="button"
+                onClick={() => setIsForgotPassword(false)}
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all cursor-pointer"
               >
-                {isAuthenticating ? 'Connecting Fleet...' : 'Enter Agent Workspace'}
-                <ArrowRight className="w-4 h-4" />
+                Return to Login
               </Button>
-            </motion.form>
+            </motion.div>
           )}
         </AnimatePresence>
 
         {errorMsg && (
-          <p className="text-xs text-rose-600 font-bold text-center bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+          <p className="text-xs text-rose-400 font-bold text-center bg-rose-500/10 p-3 rounded-xl border border-rose-500/20 mt-5">
             {errorMsg}
           </p>
         )}
 
-        <div className="pt-2 border-t border-slate-100 text-center">
-          <p className="text-[11px] text-slate-400 font-medium flex items-center justify-center gap-1.5">
+        <div className="pt-6 mt-6 border-t border-slate-700 text-center">
+          <p className="text-[11px] text-slate-500 font-medium flex items-center justify-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-            Zero Browser Key Exposure &middot; BFF Gateway Protected
+            End-to-End Encrypted Gateway
           </p>
         </div>
       </motion.div>

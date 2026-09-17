@@ -1,9 +1,0 @@
-{
-  "id": 1,
-  "upi_id": "infotech@icici",
-  "bank_name": "INFO TECH PVT LTD",
-  "bank_account": "31245678901",
-  "bank_ifsc": "SBIN0001234",
-  "qr_image_url": "/receipt-qr.png",
-  "updated_at": "2026-10-14T05:00:00.000Z"
-}

@@ -1,63 +1,90 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/utils/supabaseServer';
-import { getLocalSettings, saveLocalSettings } from '@/utils/localStore';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    try {
-      const { data, error } = await supabaseServer
-        .from('settings')
-        .select('*')
-        .eq('id', 1)
-        .single();
+    const { data, error } = await supabaseServer
+      .from('settings')
+      .select('*')
+      .eq('id', 1)
+      .single();
 
-      if (!error && data) {
-        return NextResponse.json({ data });
+    if (error) {
+      if (error.code === 'PGRST205') {
+        return NextResponse.json({
+          data: {
+            website_name: '',
+            brand: { websiteName: '', logoUrl: '' },
+            courses: [],
+          },
+          warning: 'Database tables not initialized yet. Visit /setup to initialize.',
+        });
       }
-    } catch (dbErr) {
-      console.warn('Supabase settings query skipped, using resilient store:', dbErr);
+      throw error;
     }
 
-    const localData = await getLocalSettings();
-    return NextResponse.json({ data: localData });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal error';
-    const localData = await getLocalSettings();
-    return NextResponse.json({ data: localData, fallback: true, error: message });
+    // Return data with a normalized brand object for the frontend
+    return NextResponse.json({
+      data: {
+        ...data,
+        brand: {
+          websiteName: data.website_name || '',
+          logoUrl: data.logo_url || '',
+        },
+      },
+    });
+  } catch (err: any) {
+    console.error('Settings GET Error:', err);
+    const message = err?.message || (err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: message, code: err?.code, details: err?.details }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { upi_id, bank_name, bank_account, bank_ifsc } = body;
+    const { upi_id, bank_name, account_name, bank_account, bank_ifsc, courses, brand } = body;
 
-    const payload = {
-      upi_id: upi_id || 'infotech@icici',
-      bank_name: bank_name || 'INFO TECH PVT LTD',
-      bank_account: bank_account || '31245678901',
-      bank_ifsc: bank_ifsc || 'SBIN0001234',
-    };
+    const payload: Record<string, unknown> = {};
 
-    // 1. Resilient local update
-    const updatedLocal = await saveLocalSettings(payload);
+    // Payment fields
+    if (upi_id !== undefined) payload.upi_id = upi_id;
+    if (bank_name !== undefined) payload.bank_name = bank_name;
+    if (account_name !== undefined) payload.account_name = account_name;
+    if (bank_account !== undefined) payload.bank_account = bank_account;
+    if (bank_ifsc !== undefined) payload.bank_ifsc = bank_ifsc;
 
-    // 2. Remote Supabase update
-    try {
-      await supabaseServer
-        .from('settings')
-        .upsert({
-          id: 1,
-          ...payload,
-          updated_at: new Date().toISOString(),
-        });
-    } catch (dbErr) {
-      console.warn('Supabase settings upsert skipped:', dbErr);
+    // Courses (stored as JSONB)
+    if (courses !== undefined) payload.courses = courses;
+
+    // Brand — store as flat columns
+    if (brand !== undefined) {
+      if (brand.websiteName !== undefined) payload.website_name = brand.websiteName;
+      if (brand.logoUrl !== undefined) payload.logo_url = brand.logoUrl;
     }
 
-    return NextResponse.json({ success: true, data: updatedLocal });
+    payload.updated_at = new Date().toISOString();
+
+    const { data: updatedRecord, error } = await supabaseServer
+      .from('settings')
+      .upsert({ id: 1, ...payload })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...updatedRecord,
+        brand: {
+          websiteName: updatedRecord.website_name || '',
+          logoUrl: updatedRecord.logo_url || '',
+        },
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal error';
     return NextResponse.json({ error: message }, { status: 500 });

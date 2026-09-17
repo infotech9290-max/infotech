@@ -74,8 +74,8 @@ export function StudentMobileCard({ student, onSelect }: StudentMobileCardProps)
                 const cleanPhone = (student.phone || '').replace(/[^0-9]/g, '');
                 const due = student.fees?.balanceDue ?? 0;
                 const msg = due > 0
-                  ? `Dear ${student.name}, this is a reminder from INFO TECH regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please contact counselor ${student.workerName}.`
-                  : `Hello ${student.name}! Congratulations on your admission to INFO TECH (ID: #${student.id}) for ${student.course}. Welcome to INFO TECH!`;
+                  ? `Dear ${student.name}, this is a reminder from our Institute regarding your pending admission balance of ₹${due.toLocaleString('en-IN')} for ${student.course}. Please contact counselor ${student.workerName}.`
+                  : `Hello ${student.name}! Congratulations on your admission (ID: #${student.id}) for ${student.course}. Welcome aboard!`;
                 window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(msg)}`, '_blank');
               }}
             >

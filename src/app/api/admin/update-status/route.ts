@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/utils/supabaseServer';
-import { updateLocalAdmissionStatus, logLocalAuditEvent } from '@/utils/localStore';
 
 export const dynamic = 'force-dynamic';
+
+function isAdminRequest(req: NextRequest): boolean {
+  const roleCookie = req.cookies.get('portal_role')?.value || req.cookies.get('infotech_role')?.value;
+  return roleCookie === 'ADMIN';
+}
 
 const ALLOWED_STATUSES = [
   'Action Needed',
@@ -13,82 +17,94 @@ const ALLOWED_STATUSES = [
 ];
 
 export async function POST(req: NextRequest) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: 'Unauthorized: Admin privileges required' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
-    const { uniqueId, status, balanceDue } = body;
+    const { uniqueId, status, balanceDue, paidAmount, phone, email, fatherName } = body;
 
-    // Security Check 1: Validate parameters
     if (!uniqueId || typeof uniqueId !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid or missing uniqueId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid or missing uniqueId' }, { status: 400 });
     }
 
-    if (!ALLOWED_STATUSES.includes(status)) {
-      return NextResponse.json(
-        { error: `Unauthorized status value. Allowed: ${ALLOWED_STATUSES.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
-    // Security Check 2: Sanitize balanceDue
-    const sanitizedBalanceDue = balanceDue !== undefined ? Math.max(0, Number(balanceDue) || 0) : undefined;
-
-    // 1. Update resilient local storage immediately (guaranteed persistence)
-    const localUpdated = await updateLocalAdmissionStatus(uniqueId, status, sanitizedBalanceDue);
-
-    // 2. Map UI status to DB status and update remote Supabase
-    let dbStatus = 'IN_PROCESS';
-    if (status === 'Enrolled') dbStatus = 'ENROLLED';
-    else if (status === 'Cancelled') dbStatus = 'CANCELLED';
-    else if (status === 'Rejected') dbStatus = 'REJECTED';
-    else if (status === 'Action Needed') dbStatus = 'ACTION_NEEDED';
-
-    const updatePayload: Record<string, string | number> = {
-      status: dbStatus,
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
     };
 
-    if (sanitizedBalanceDue !== undefined) {
-      updatePayload.balance_due = sanitizedBalanceDue;
+    let statusDisplay = status;
+    if (status) {
+      if (!ALLOWED_STATUSES.includes(status)) {
+        return NextResponse.json({ error: `Unauthorized status value. Allowed: ${ALLOWED_STATUSES.join(', ')}` }, { status: 400 });
+      }
+
+      let dbStatus = 'IN_PROCESS';
+      if (status === 'Enrolled') dbStatus = 'ENROLLED';
+      else if (status === 'Cancelled') dbStatus = 'CANCELLED';
+      else if (status === 'Rejected') dbStatus = 'REJECTED';
+      else if (status === 'Action Needed') dbStatus = 'ACTION_NEEDED';
+
+      updatePayload.status = dbStatus;
     }
 
-    try {
-      await supabaseServer
-        .from('admissions')
-        .update(updatePayload)
-        .eq('unique_id', uniqueId.trim());
-    } catch (dbErr) {
-      console.warn('Supabase remote status update deferred/skipped:', dbErr);
+    if (balanceDue !== undefined) {
+      const sanitizedBalance = Math.max(0, Number(balanceDue) || 0);
+      updatePayload.balance_due = sanitizedBalance;
+      // If balance is cleared and status wasn't explicitly set to cancelled/rejected, mark Enrolled
+      if (sanitizedBalance === 0 && (!status || status === 'In Process' || status === 'Action Needed')) {
+        updatePayload.status = 'ENROLLED';
+        statusDisplay = 'Enrolled';
+      }
     }
 
-    // 3. Security Audit Log
+    if (paidAmount !== undefined) {
+      updatePayload.paid_amount = Math.max(0, Number(paidAmount) || 0);
+    }
+
+    if (phone !== undefined && typeof phone === 'string') {
+      updatePayload.phone = phone.trim();
+    }
+
+    if (email !== undefined && typeof email === 'string') {
+      updatePayload.email = email.trim().toLowerCase();
+    }
+
+    if (fatherName !== undefined && typeof fatherName === 'string') {
+      updatePayload.father_name = fatherName.trim();
+    }
+
+    const { data: updatedRecord, error: updateErr } = await supabaseServer
+      .from('admissions')
+      .update(updatePayload)
+      .eq('unique_id', uniqueId.trim())
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+
     const clientIp = req.headers.get('x-forwarded-for') || '127.0.0.1';
-    const userAgent = req.headers.get('user-agent') || 'Admin Session';
-    const auditAction = `Verified Admin Status Change: #${uniqueId} updated to "${status}"`;
+    const userAgent = req.headers.get('user-agent') || 'Unknown Device';
+    const auditAction = statusDisplay
+      ? `Verified Admin Status Change: #${uniqueId} updated to "${statusDisplay}"`
+      : `Verified Admin Record Update: #${uniqueId}`;
 
-    await logLocalAuditEvent(auditAction, userAgent, clientIp.split(',')[0].trim());
-
-    try {
-      await supabaseServer.from('audit_logs').insert([
-        {
-          action: auditAction,
-          device_info: userAgent.slice(0, 150),
-          ip_address: clientIp.split(',')[0].trim(),
-        },
-      ]);
-    } catch {}
+    await supabaseServer.from('audit_logs').insert([{
+      action: auditAction,
+      device_info: userAgent.slice(0, 150),
+      ip_address: clientIp.split(',')[0].trim(),
+    }]);
 
     return NextResponse.json({
       success: true,
       uniqueId,
-      status,
-      updatedRecord: localUpdated,
+      status: statusDisplay,
+      updatedRecord,
     });
   } catch (err) {
     console.error('Unexpected server error in update-status:', err);
     return NextResponse.json(
-      { error: 'Internal server error while processing status update.' },
+      { error: 'Internal server error while processing student update.' },
       { status: 500 }
     );
   }

@@ -3,13 +3,11 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const roleCookie = request.cookies.get('infotech_role')?.value;
+  const roleCookie = request.cookies.get('portal_role')?.value || request.cookies.get('infotech_role')?.value;
 
   // Root path: redirect based on auth status
   if (pathname === '/') {
-    if (roleCookie === 'ADMIN') {
-      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-    } else if (roleCookie === 'WORKER') {
+    if (roleCookie === 'ADMIN' || roleCookie === 'WORKER') {
       return NextResponse.redirect(new URL('/worker/my-dashboard', request.url));
     }
     return NextResponse.redirect(new URL('/login', request.url));
@@ -34,9 +32,7 @@ export function middleware(request: NextRequest) {
 
   // Login page: if already logged in, send directly to authorized dashboard
   if (pathname === '/login') {
-    if (roleCookie === 'ADMIN') {
-      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-    } else if (roleCookie === 'WORKER') {
+    if (roleCookie === 'ADMIN' || roleCookie === 'WORKER') {
       return NextResponse.redirect(new URL('/worker/my-dashboard', request.url));
     }
   }

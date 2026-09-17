@@ -28,7 +28,7 @@ export default function RootPage() {
           <ShieldCheck className="w-8 h-8 text-white" />
         </div>
         <div className="text-center">
-          <h1 className="text-2xl font-black tracking-tight text-white">INFO TECH</h1>
+          <h1 className="text-2xl font-black tracking-tight text-white">Admission Portal</h1>
           <p className="text-xs text-slate-400 mt-1">Connecting to Secure Admission Network...</p>
         </div>
         <Loader2 className="w-6 h-6 text-blue-400 animate-spin mt-2" />

@@ -73,7 +73,7 @@ export default function FootprintsPage() {
                 <div>
                   <p className="text-sm font-bold text-slate-900">{log.action}</p>
                   <p className="text-xs text-slate-400 font-mono mt-0.5 truncate max-w-md">
-                    {log.device_info || 'Admin Browser Session'}
+                    {log.device_info || 'System Activity'}
                   </p>
                 </div>
               </div>

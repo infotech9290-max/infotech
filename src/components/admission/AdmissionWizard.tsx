@@ -1,6 +1,5 @@
 'use client';
 import { useAuth } from '@/context/AuthContext';
-import { COURSES } from './StepStudentDetails';
 import { motion, AnimatePresence } from 'framer-motion';
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -42,7 +41,7 @@ export function AdmissionWizard({
   isModal = false,
 }: AdmissionWizardProps) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [errors, setErrors] = useState<string[]>([]);
   const [errorFields, setErrorFields] = useState<Record<string, string>>({});
@@ -76,16 +75,18 @@ export function AdmissionWizard({
     photo: null,
     photoPreview: undefined,
     pdfDossier: null,
+    tenthMarksheet: null,
+    twelfthMarksheet: null,
     pdfFileName: undefined,
     pdfFileSize: undefined,
   });
 
   const [feeData, setFeeData] = useState<StepFeeDetailsData>({
-    totalFee: 120000,
+    totalFee: 0,
     discount: 0,
-    netFee: 105000,
+    netFee: 0,
     downPayment: 0,
-    balanceDue: 70000,
+    balanceDue: 0,
     paymentMethod: 'UPI QR',
     paymentPlan: '2 Installments',
     utr: '',
@@ -97,6 +98,65 @@ export function AdmissionWizard({
     declarationConfirmed: false,
   });
 
+  const LOCAL_STORAGE_KEY = 'draftAdmission_v1';
+  const [isRestored, setIsRestored] = useState(false);
+
+  useEffect(() => {
+    try {
+      const draftStr = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (draftStr) {
+        const draft = JSON.parse(draftStr);
+        if (draft.studentData) {
+          setStudentData(prev => ({ ...prev, ...draft.studentData }));
+        }
+        if (draft.feeData) {
+          setFeeData(prev => ({ ...prev, ...draft.feeData }));
+        }
+        if (draft.currentStep && draft.currentStep < 4) {
+          setCurrentStep(draft.currentStep);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse draft admission', e);
+    }
+    setIsRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isRestored || currentStep === 4) return;
+    
+    const safeStudentData = { ...studentData };
+    delete (safeStudentData as any).photo;
+    delete safeStudentData.photoPreview;
+    delete (safeStudentData as any).pdfDossier;
+    delete (safeStudentData as any).tenthMarksheet;
+    delete (safeStudentData as any).twelfthMarksheet;
+    
+    const safeFeeData = { ...feeData };
+    delete (safeFeeData as any).paymentScreenshot;
+    delete safeFeeData.paymentScreenshotPreview;
+
+    const draft = {
+      studentData: safeStudentData,
+      feeData: safeFeeData,
+      currentStep,
+      lastSaved: Date.now()
+    };
+    
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(draft));
+  }, [studentData, feeData, currentStep, isRestored]);
+
+  useEffect(() => {
+    if (currentStep === 4) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (studentData.name.length > 2 || studentData.phone.length > 4) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [studentData, currentStep]);
 
   // Smooth auto-redirect countdown upon reaching Step 4
   useEffect(() => {
@@ -138,7 +198,7 @@ export function AdmissionWizard({
       errList.push('Email address is required');
       fieldMap.email = 'Email address is required';
     } else if (!emailRegex.test(trimmedEmail)) {
-      errList.push('A valid email address is required (e.g. rahul@student.infotech.pro)');
+      errList.push('A valid email address is required (e.g. student@example.com)');
       fieldMap.email = 'Valid email format required';
     }
 
@@ -189,9 +249,6 @@ export function AdmissionWizard({
     if (!studentData.course.trim()) {
       errList.push('Target course selection is required');
       fieldMap.course = 'Please select a course';
-    } else if (!COURSES.some((c) => c.code === studentData.course)) {
-      errList.push('Please select a valid course from the list');
-      fieldMap.course = 'Invalid course selected';
     }
 
     if (!studentData.photo) {
@@ -241,6 +298,9 @@ export function AdmissionWizard({
     if (feeData.downPayment < 0) {
       errList.push('Down payment cannot be negative');
       fieldMap.downPayment = 'Invalid down payment';
+    } else if (studentData.minDownpayment && feeData.downPayment < studentData.minDownpayment && feeData.downPayment < net) {
+      errList.push(`Minimum down payment required for this course is ₹${studentData.minDownpayment.toLocaleString('en-IN')}`);
+      fieldMap.downPayment = `Min required: ₹${studentData.minDownpayment.toLocaleString('en-IN')}`;
     } else if (feeData.downPayment > net) {
       errList.push('Down payment cannot exceed net payable fee');
       fieldMap.downPayment = 'Exceeds net fee';
@@ -281,8 +341,7 @@ export function AdmissionWizard({
   // Step Navigation Handlers
   const handleNextFromStep1 = () => {
     if (validateStep1()) {
-      const courseObj = COURSES.find((c) => c.code === studentData.course);
-      const mappedFee = courseObj ? courseObj.defaultFee : 120000;
+      const mappedFee = studentData.totalFee || 0;
       setFeeData((prev) => {
         if (prev.totalFee === mappedFee) return prev;
         const net = Math.max(0, mappedFee - (prev.discount || 0));
@@ -344,8 +403,10 @@ export function AdmissionWizard({
     setErrorFields({});
 
     const doSubmit = async () => {
-      const randomSuffix = Math.floor(10000 + Math.random() * 90000);
-      const studentId = `STU-${randomSuffix}-AX`;
+      // Generate unique student ID attributed to worker or admin (e.g. STU-WK01-4821 or STU-ADM01-9214)
+      const rawWorkerTag = (user?.id || (role === 'ADMIN' ? 'ADM-01' : 'WK-01')).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const studentId = `STU-${rawWorkerTag}-${randomSuffix}`;
 
       const netFee = Math.max(0, (feeData.totalFee || 0) - (feeData.discount || 0));
       const balanceDue = Math.max(0, netFee - (feeData.downPayment || 0));
@@ -355,6 +416,72 @@ export function AdmissionWizard({
         month: 'short',
         year: 'numeric',
       });
+
+      try {
+        // Upload photo if present
+        let uploadedPhotoUrl = '';
+        if (studentData.photo) {
+          const photoData = new FormData();
+          photoData.append('file', studentData.photo);
+          photoData.append('bucket', 'photos');
+          const photoRes = await fetch('/api/upload', { method: 'POST', body: photoData });
+          if (photoRes.ok) {
+            const pJson = await photoRes.json();
+            uploadedPhotoUrl = pJson.url || '';
+          }
+        }
+
+        // Upload PDF if present
+        let uploadedPdfUrl = '';
+        if (studentData.pdfDossier) {
+          const pdfData = new FormData();
+          pdfData.append('file', studentData.pdfDossier);
+          pdfData.append('bucket', 'dossiers');
+          const pdfRes = await fetch('/api/upload', { method: 'POST', body: pdfData });
+          if (pdfRes.ok) {
+            const pdfJson = await pdfRes.json();
+            uploadedPdfUrl = pdfJson.url || '';
+          }
+        }
+
+        // Upload screenshot if present
+        let uploadedScreenshotUrl = '';
+        if (feeData.paymentScreenshot) {
+          const ssData = new FormData();
+          ssData.append('file', feeData.paymentScreenshot);
+          ssData.append('bucket', 'receipts');
+          const ssRes = await fetch('/api/upload', { method: 'POST', body: ssData });
+          if (ssRes.ok) {
+            const ssJson = await ssRes.json();
+            uploadedScreenshotUrl = ssJson.url || '';
+          }
+        }
+
+        // Upload 10th Marksheet if present
+        let uploaded10thUrl = '';
+        if (studentData.tenthMarksheet) {
+          const m10Data = new FormData();
+          m10Data.append('file', studentData.tenthMarksheet);
+          m10Data.append('bucket', 'dossiers');
+          const m10Res = await fetch('/api/upload', { method: 'POST', body: m10Data });
+          if (m10Res.ok) {
+            const m10Json = await m10Res.json();
+            uploaded10thUrl = m10Json.url || '';
+          }
+        }
+
+        // Upload 12th Marksheet if present
+        let uploaded12thUrl = '';
+        if (studentData.twelfthMarksheet) {
+          const m12Data = new FormData();
+          m12Data.append('file', studentData.twelfthMarksheet);
+          m12Data.append('bucket', 'dossiers');
+          const m12Res = await fetch('/api/upload', { method: 'POST', body: m12Data });
+          if (m12Res.ok) {
+            const m12Json = await m12Res.json();
+            uploaded12thUrl = m12Json.url || '';
+          }
+        }
 
       const newStudentRecord: Student = {
         id: studentId,
@@ -367,11 +494,11 @@ export function AdmissionWizard({
           hour: '2-digit',
           minute: '2-digit',
         })}`,
-        workerName: user?.email?.split('@')[0] || 'Unknown Worker',
-        workerEmail: user?.email || 'worker@infotech.pro',
+        workerName: user?.email?.split('@')[0] || '',
+        workerEmail: user?.email || '',
         worker: {
-          name: user?.email?.split('@')[0] || 'Worker',
-          email: user?.email || 'worker@infotech.pro',
+          name: user?.email?.split('@')[0] || '',
+          email: user?.email || '',
         },
         marks: {
           tenth: studentData.tenthMarks,
@@ -402,15 +529,39 @@ export function AdmissionWizard({
             paidDate: nowFormatted,
           },
           ...(balanceDue > 0
-            ? [
-                {
-                  id: 'INST-2',
-                  title: '2nd Installment (Scheduled)',
-                  dueDate: '15 Dec 2026',
-                  amount: balanceDue,
-                  status: 'PENDING' as const,
-                },
-              ]
+            ? (() => {
+                const numInstalls = Math.min(parseInt(feeData.paymentPlan?.charAt(0) || '1') || 1, studentData.maxInstallments || 2);
+                let runningTotal = 0;
+                
+                return Array.from({ length: numInstalls }).map((_, i) => {
+                  let emiAmount = 0;
+                  if (i === numInstalls - 1) {
+                    emiAmount = Math.max(0, balanceDue - runningTotal);
+                  } else {
+                    const predefined = [
+                      studentData.inst1 || 0,
+                      studentData.inst2 || 0,
+                      studentData.inst3 || 0,
+                      studentData.inst4 || 0,
+                    ];
+                    emiAmount = predefined[i] > 0 
+                      ? predefined[i] 
+                      : Math.round(balanceDue / numInstalls);
+                    runningTotal += emiAmount;
+                  }
+
+                  const date = new Date();
+                  date.setDate(date.getDate() + ((i + 1) * 30));
+                  
+                  return {
+                    id: `INST-${i + 2}`,
+                    title: `Installment ${i + 1} (Scheduled)`,
+                    dueDate: date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                    amount: emiAmount,
+                    status: 'PENDING' as const,
+                  };
+                });
+              })()
             : []),
         ],
         payments: [
@@ -422,9 +573,9 @@ export function AdmissionWizard({
             utr: feeData.utr?.trim() || (feeData.paymentMethod === 'Cash' ? 'CASH-OFFICE' : 'OFFLINE-DESK'),
             bankDetails:
               feeData.paymentMethod === 'UPI QR'
-                ? 'ICICI Bank (boss@icici)'
-                : 'HDFC Bank (Admissions A/C)',
-            screenshotUrl: feeData.paymentScreenshotPreview || '/receipt-qr.png',
+                ? 'Official UPI'
+                : feeData.paymentMethod === 'Cash' ? 'Cash Desk' : 'Official Bank A/c',
+            screenshotUrl: uploadedScreenshotUrl || feeData.paymentScreenshotPreview || '/receipt-qr.png',
             verified: true,
           },
         ],
@@ -437,14 +588,13 @@ export function AdmissionWizard({
               `${studentData.name.trim().replace(/\s+/g, '_')}_Dossier.pdf`,
             fileSize: studentData.pdfFileSize || '2.1 MB',
             uploadDate: nowFormatted,
-            url: '#',
+            url: uploadedPdfUrl || '#',
             type: 'PDF',
           },
         ],
-        photoUrl: studentData.photoPreview,
+        photoUrl: uploadedPhotoUrl || studentData.photoPreview,
       };
 
-      try {
         // Secure Server-Side Route Submission (NEVER browser direct Supabase)
         const res = await fetch('/api/admissions', {
           method: 'POST',
@@ -453,17 +603,31 @@ export function AdmissionWizard({
             unique_id: studentId,
             student_name: studentData.name.trim(),
             father_name: studentData.guardianName?.trim() || 'N/A',
+            email: studentData.email?.trim() || '',
+            phone: studentData.phone?.trim() || '',
             graduation_course: studentData.course,
+            graduation_session: studentData.session || '2026-2029',
             tenth_marks: studentData.tenthMarks.trim(),
-            status: 'Action Needed',
-            worker_id: user?.id || null,
-            worker_name: user?.email?.split('@')[0] || 'Worker',
+            status: balanceDue === 0 ? 'Enrolled' : 'Action Needed',
+            worker_id: user?.id || (role === 'ADMIN' ? 'ADM-01' : 'WK-01'),
+            worker_name: user?.name || user?.email?.split('@')[0] || (role === 'ADMIN' ? 'Super Admin' : 'Counselor'),
+            worker_email: user?.email || '',
+            total_fee: feeData.totalFee || 0,
+            discount: feeData.discount || 0,
+            paid_amount: feeData.downPayment || 0,
             balance_due: balanceDue,
             payment_method: feeData.paymentMethod,
             payment_utr: feeData.utr?.trim() || (feeData.paymentMethod === 'Cash' ? 'CASH-DESK' : ''),
             tenth_school: studentData.tenthSchool?.trim() || '',
             tenth_year: studentData.tenthYear?.trim() || '',
             twelfth_details: studentData.twelfthMarks?.trim() || '',
+            twelfth_year: studentData.twelfthYear?.trim() || '',
+            twelfth_stream: studentData.twelfthStream?.trim() || '',
+            photo_url: uploadedPhotoUrl,
+            dossier_pdf_url: uploadedPdfUrl,
+            tenth_marksheet_url: uploaded10thUrl,
+            twelfth_marksheet_url: uploaded12thUrl,
+            payment_screenshot_url: uploadedScreenshotUrl,
           }),
         });
 
@@ -476,6 +640,7 @@ export function AdmissionWizard({
         setSubmittedStudent(newStudentRecord);
         setRedirectCountdown(5);
         setIsRedirectPaused(false);
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
         setCurrentStep(4);
         if (onSuccess) onSuccess(newStudentRecord);
       } catch (dbErr) {
@@ -491,6 +656,7 @@ export function AdmissionWizard({
   };
 
   const handleReset = () => {
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
     setStudentData({
       name: '',
       email: '',
@@ -513,15 +679,17 @@ export function AdmissionWizard({
       photo: null,
       photoPreview: undefined,
       pdfDossier: null,
+      tenthMarksheet: null,
+      twelfthMarksheet: null,
       pdfFileName: undefined,
       pdfFileSize: undefined,
     });
     setFeeData({
-      totalFee: 120000,
+      totalFee: 0,
       discount: 0,
-      netFee: 105000,
+      netFee: 0,
       downPayment: 0,
-      balanceDue: 70000,
+      balanceDue: 0,
       paymentMethod: 'UPI QR',
       paymentPlan: '2 Installments',
       utr: '',
@@ -724,15 +892,32 @@ export function AdmissionWizard({
             />
           )}
 
+          {/* Active Counselor & Target Student ID Tag Banner */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl mb-6 text-xs">
+            <div className="flex items-center gap-2.5 text-slate-700">
+              <span className="w-7 h-7 rounded-lg bg-blue-600 text-white font-black flex items-center justify-center text-[10px] shadow-2xs">
+                {(user?.id || (role === 'ADMIN' ? 'ADM' : 'WK')).slice(0, 3)}
+              </span>
+              <div>
+                <span className="text-slate-500">Processing Counselor: </span>
+                <strong className="text-slate-900">{user?.name || user?.email?.split('@')[0] || 'Counselor'}</strong>
+                <span className="text-slate-400 mx-1.5">•</span>
+                <span className="text-blue-600 font-mono font-semibold">ID: {user?.id || (role === 'ADMIN' ? 'ADM-01' : 'WK-01')}</span>
+              </div>
+            </div>
+            <div className="text-slate-600 font-mono text-[11px] sm:text-right bg-white px-2.5 py-1 rounded-xl border border-slate-200">
+              Student ID Tag: <strong className="text-emerald-600">STU-{(user?.id || (role === 'ADMIN' ? 'ADM01' : 'WK01')).replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}-XXXX</strong>
+            </div>
+          </div>
+
           {/* Step 1: Student Details */}
           {currentStep === 1 && (
             <StepStudentDetails
               data={studentData}
               onChange={(updates) => {
                 setStudentData((prev) => ({ ...prev, ...updates }));
-                if (updates.course) {
-                  const courseObj = COURSES.find((c) => c.code === updates.course);
-                  const mappedFee = courseObj ? courseObj.defaultFee : 120000;
+                if (updates.course || updates.totalFee !== undefined) {
+                  const mappedFee = updates.totalFee !== undefined ? updates.totalFee : (studentData.totalFee || 0);
                   setFeeData((prev) => {
                     if (prev.totalFee === mappedFee) return prev;
                     const net = Math.max(0, mappedFee - (prev.discount || 0));
@@ -761,6 +946,20 @@ export function AdmissionWizard({
               onBack={() => handleGoToStep(1)}
               onNext={handleNextFromStep2}
               errorFields={errorFields}
+              minDownpayment={studentData.minDownpayment || 0}
+              maxInstallments={studentData.maxInstallments || 2}
+              predefinedInstalls={[
+                studentData.inst1 || 0,
+                studentData.inst2 || 0,
+                studentData.inst3 || 0,
+                studentData.inst4 || 0,
+              ]}
+              predefinedMonths={[
+                studentData.inst1Months || 1,
+                studentData.inst2Months || 2,
+                studentData.inst3Months || 3,
+                studentData.inst4Months || 4,
+              ]}
             />
           )}
 

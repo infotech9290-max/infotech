@@ -12,25 +12,12 @@ export interface AuthUser {
   role: UserRole;
 }
 
-export const ADMIN_USER: AuthUser = {
-  id: 'admin-001',
-  email: 'boss@infotech.pro',
-  name: 'Super Admin',
-  role: 'ADMIN',
-};
-
-export const WORKER_USER: AuthUser = {
-  id: 'WK-001',
-  email: 'worker@infotech.pro',
-  name: 'Agent Ramesh',
-  role: 'WORKER',
-};
 
 interface AuthContextType {
   user: AuthUser | null;
   role: UserRole | null;
   isLoading: boolean;
-  login: (role: UserRole, userDetails?: Partial<AuthUser>) => void;
+  login: (role: UserRole, userDetails: AuthUser) => void;
   switchRole: (newRole: UserRole) => void;
   logout: () => void;
 }
@@ -43,9 +30,9 @@ export const useAuth = () => {
   return ctx;
 };
 
-const STORAGE_ROLE_KEY = 'infotech_portal_auth_role';
-const STORAGE_USER_KEY = 'infotech_portal_auth_user';
-const COOKIE_NAME = 'infotech_role';
+const STORAGE_ROLE_KEY = 'portal_auth_role';
+const STORAGE_USER_KEY = 'portal_auth_user';
+const COOKIE_NAME = 'portal_role';
 
 function setRoleCookie(role: UserRole | null) {
   if (typeof document === 'undefined') return;
@@ -65,13 +52,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Restore authenticated session ONLY if user previously logged in
   useEffect(() => {
     try {
-      // Clear legacy dev auto-login keys if present
-      localStorage.removeItem('infotech_auth_role');
-      localStorage.removeItem('infotech_auth_user');
-      localStorage.removeItem('infotech_auth_initialized');
-
-      const savedRole = localStorage.getItem(STORAGE_ROLE_KEY) as UserRole | null;
-      const savedUserStr = localStorage.getItem(STORAGE_USER_KEY);
+      const savedRole = (localStorage.getItem(STORAGE_ROLE_KEY) || localStorage.getItem('infotech_portal_auth_role')) as UserRole | null;
+      const savedUserStr = localStorage.getItem(STORAGE_USER_KEY) || localStorage.getItem('infotech_portal_auth_user');
 
       if (savedRole === 'ADMIN' || savedRole === 'WORKER') {
         let parsedUser: AuthUser | null = null;
@@ -82,10 +64,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             parsedUser = null;
           }
         }
-        const activeUser = parsedUser || (savedRole === 'ADMIN' ? ADMIN_USER : WORKER_USER);
-        setUser(activeUser);
-        setRole(savedRole);
-        setRoleCookie(savedRole);
+        
+        if (parsedUser) {
+          setUser(parsedUser);
+          setRole(savedRole);
+          setRoleCookie(savedRole);
+        } else {
+          setUser(null);
+          setRole(null);
+          setRoleCookie(null);
+        }
       } else {
         // Not logged in -> Must see Login Page first!
         setUser(null);
@@ -102,41 +90,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  const login = useCallback((targetRole: UserRole, userDetails?: Partial<AuthUser>) => {
-    const baseUser = targetRole === 'ADMIN' ? ADMIN_USER : WORKER_USER;
-    const activeUser: AuthUser = {
-      ...baseUser,
-      ...userDetails,
-      role: targetRole,
-    };
-
-    setUser(activeUser);
+  const login = useCallback((targetRole: UserRole, userDetails: AuthUser) => {
+    setUser(userDetails);
     setRole(targetRole);
     setRoleCookie(targetRole);
 
     try {
       localStorage.setItem(STORAGE_ROLE_KEY, targetRole);
-      localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(activeUser));
+      localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(userDetails));
     } catch (e) {
       console.error('Failed to persist auth session:', e);
     }
 
-    if (targetRole === 'ADMIN') {
-      router.replace('/admin/dashboard');
-    } else {
-      router.replace('/worker/my-dashboard');
-    }
+    // STEALTH MODE: Both Admin and Worker land on the Worker Dashboard initially.
+    router.replace('/worker/my-dashboard');
   }, [router]);
 
   const switchRole = useCallback((newRole: UserRole) => {
-    const newUser = newRole === 'ADMIN' ? ADMIN_USER : WORKER_USER;
-    setUser(newUser);
+    if (newRole !== 'ADMIN' && newRole !== 'WORKER') return;
+    
     setRole(newRole);
     setRoleCookie(newRole);
-
     try {
       localStorage.setItem(STORAGE_ROLE_KEY, newRole);
-      localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(newUser));
+      if (user) {
+        const updatedUser = { ...user, role: newRole };
+        setUser(updatedUser);
+        localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(updatedUser));
+      }
     } catch (e) {
       console.error('Failed to save switched role:', e);
     }
@@ -146,7 +127,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } else {
       router.replace('/worker/my-dashboard');
     }
-  }, [router]);
+  }, [user, router]);
 
   const logout = useCallback(() => {
     setUser(null);
@@ -160,8 +141,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Failed to clear auth session on logout:', e);
     }
 
-    router.replace('/login');
-  }, [router]);
+    // Use window.location instead of router.replace for a TRUE hard refresh 
+    // This clears Next.js client-side router cache and forces middleware re-evaluation
+    window.location.href = '/login';
+  }, []);
 
   const value = useMemo(() => ({
     user,

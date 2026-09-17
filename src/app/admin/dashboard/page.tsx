@@ -7,7 +7,6 @@ import { StudentList } from '@/components/dashboard/StudentList';
 import { StudentProfileModal } from '@/components/profile/StudentProfileModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { MOCK_STUDENTS } from '@/data/mockStudents';
 import { mapDbRecordToStudent, DbAdmissionRecord } from '@/utils/studentMapper';
 
 import WorkersPage from './workers/page';
@@ -19,7 +18,7 @@ type AdminTab = 'overview' | 'workers' | 'settings' | 'footprints' | 'admission'
 
 export default function AdminOverview() {
   const [currentTab, setCurrentTab] = useState<AdminTab>('overview');
-  const [students, setStudents] = useState<Student[]>(MOCK_STUDENTS);
+  const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeStatusFilter, setActiveStatusFilter] = useState<StudentStatus | 'ALL'>('ALL');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -66,17 +65,17 @@ export default function AdminOverview() {
         const json = await res.json();
         const data = json.data;
 
-        if (data && data.length > 0) {
+        if (data && Array.isArray(data)) {
           const records = data as unknown as DbAdmissionRecord[];
           const mapped: Student[] = records.map(mapDbRecordToStudent);
           setStudents(mapped);
           return;
         }
       }
-      setStudents(MOCK_STUDENTS);
+      setStudents([]);
     } catch (err) {
-      console.error('Error fetching admissions from Supabase:', err);
-      setStudents(MOCK_STUDENTS);
+      console.error('Error fetching admissions from API:', err);
+      setStudents([]);
     } finally {
       setIsLoading(false);
     }

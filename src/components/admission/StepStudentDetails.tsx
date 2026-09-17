@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -17,50 +17,7 @@ import {
 } from 'lucide-react';
 import { compressImage } from '@/utils/compressImage';
 
-export const COURSES = [
-  {
-    name: 'BCA (Bachelor of Computer Applications)',
-    code: 'BCA',
-    defaultFee: 120000,
-    defaultSession: '2026-2029',
-  },
-  {
-    name: 'B.Tech CSE (Computer Science & Engineering)',
-    code: 'B.Tech CSE',
-    defaultFee: 240000,
-    defaultSession: '2026-2030',
-  },
-  {
-    name: 'B.Tech AI & Data Science',
-    code: 'B.Tech AI',
-    defaultFee: 250000,
-    defaultSession: '2026-2030',
-  },
-  {
-    name: 'MCA (Master of Computer Applications)',
-    code: 'MCA',
-    defaultFee: 160000,
-    defaultSession: '2026-2028',
-  },
-  {
-    name: 'MBA (Master of Business Administration)',
-    code: 'MBA',
-    defaultFee: 200000,
-    defaultSession: '2026-2028',
-  },
-  {
-    name: 'BBA (Bachelor of Business Administration)',
-    code: 'BBA',
-    defaultFee: 130000,
-    defaultSession: '2026-2029',
-  },
-  {
-    name: 'B.Com (Bachelor of Commerce)',
-    code: 'B.Com',
-    defaultFee: 90000,
-    defaultSession: '2026-2029',
-  },
-];
+// COURSES array removed completely
 
 export interface StepStudentDetailsData {
   name: string;
@@ -90,8 +47,22 @@ export interface StepStudentDetailsData {
   pdfDossier: File | null;
   pdfFileName?: string;
   pdfFileSize?: string;
+  tenthMarksheet: File | null;
+  tenthMarksheetPreview?: string;
+  twelfthMarksheet: File | null;
+  twelfthMarksheetPreview?: string;
 
   totalFee?: number;
+  minDownpayment?: number;
+  maxInstallments?: number;
+  inst1?: number;
+  inst2?: number;
+  inst3?: number;
+  inst4?: number;
+  inst1Months?: number;
+  inst2Months?: number;
+  inst3Months?: number;
+  inst4Months?: number;
 }
 
 interface StepStudentDetailsProps {
@@ -114,6 +85,41 @@ export function StepStudentDetails({
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
   const [isDraggingPdf, setIsDraggingPdf] = useState(false);
   const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
+
+  const [coursesList, setCoursesList] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const json = await res.json();
+        const parsed = json.data?.courses;
+        
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const enhanced = parsed.map((c: any) => ({
+             name: c.name,
+             code: c.name?.split(' ')[0] || c.name,
+             defaultFee: parseFloat(c.fee) || 120000,
+             minDownpayment: parseFloat(c.minDownpayment) || 0,
+             defaultSession: c.name?.toLowerCase().includes('master') || c.name?.toLowerCase().includes('mba') || c.name?.toLowerCase().includes('mca') ? '2026-2028' : '2026-2029',
+             maxInstallments: parseInt(c.maxInstallments) || 2,
+             inst1: parseFloat(c.inst1) || 0,
+             inst2: parseFloat(c.inst2) || 0,
+             inst3: parseFloat(c.inst3) || 0,
+             inst4: parseFloat(c.inst4) || 0,
+             inst1Months: parseInt(c.inst1Months) || 1,
+             inst2Months: parseInt(c.inst2Months) || 2,
+             inst3Months: parseInt(c.inst3Months) || 3,
+             inst4Months: parseInt(c.inst4Months) || 4,
+          }));
+          setCoursesList(enhanced);
+        }
+      } catch (e) {
+        console.warn('Could not load custom courses', e);
+      }
+    };
+    fetchCourses();
+  }, []);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -189,6 +195,36 @@ export function StepStudentDetails({
     if (photoInputRef.current) photoInputRef.current.value = '';
   };
 
+  const tenthInputRef = useRef<HTMLInputElement>(null);
+  const handleTenthSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    try {
+      const compressed = await compressImage(file);
+      onChange({
+        tenthMarksheet: compressed,
+        tenthMarksheetPreview: URL.createObjectURL(compressed),
+      });
+    } catch {
+      onChange({ tenthMarksheet: file, tenthMarksheetPreview: URL.createObjectURL(file) });
+    }
+  };
+
+  const twelfthInputRef = useRef<HTMLInputElement>(null);
+  const handleTwelfthSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    try {
+      const compressed = await compressImage(file);
+      onChange({
+        twelfthMarksheet: compressed,
+        twelfthMarksheetPreview: URL.createObjectURL(compressed),
+      });
+    } catch {
+      onChange({ twelfthMarksheet: file, twelfthMarksheetPreview: URL.createObjectURL(file) });
+    }
+  };
+
   // Single PDF Upload Handler with Strict File Validation
   const handleProcessPdf = (file: File) => {
     setPdfUploadError(null);
@@ -209,9 +245,9 @@ export function StepStudentDetails({
       return;
     }
 
-    // Security Check 3: Max 20 MB size limit
-    if (file.size > 20 * 1024 * 1024) {
-      setPdfUploadError('File size exceeds 20 MB limit. Please optimize the PDF.');
+    // Security Check 3: Max 5 MB size limit
+    if (file.size > 5 * 1024 * 1024) {
+      setPdfUploadError('File size exceeds 5 MB limit. Please optimize the PDF.');
       if (pdfInputRef.current) pdfInputRef.current.value = '';
       return;
     }
@@ -255,12 +291,22 @@ export function StepStudentDetails({
 
   // Course selection auto-fills default fee if totalFee is not already customized
   const handleCourseChange = (selectedCode: string) => {
-    const courseObj = COURSES.find((c) => c.code === selectedCode);
+    const courseObj = coursesList.find((c) => c.code === selectedCode);
     if (courseObj) {
       onChange({
         course: courseObj.code,
         session: courseObj.defaultSession,
-        totalFee: data.totalFee ? data.totalFee : courseObj.defaultFee,
+        totalFee: courseObj.defaultFee,
+        minDownpayment: (courseObj as any).minDownpayment || 0,
+        maxInstallments: (courseObj as any).maxInstallments || 2,
+        inst1: (courseObj as any).inst1 || 0,
+        inst2: (courseObj as any).inst2 || 0,
+        inst3: (courseObj as any).inst3 || 0,
+        inst4: (courseObj as any).inst4 || 0,
+        inst1Months: (courseObj as any).inst1Months || 1,
+        inst2Months: (courseObj as any).inst2Months || 2,
+        inst3Months: (courseObj as any).inst3Months || 3,
+        inst4Months: (courseObj as any).inst4Months || 4,
       });
     } else {
       onChange({ course: selectedCode });
@@ -317,7 +363,7 @@ export function StepStudentDetails({
             <Input
               id="email"
               type="email"
-              placeholder="rahul.sharma@student.infotech.pro"
+              placeholder="student@example.com"
               value={data.email}
               onChange={(e) => onChange({ email: e.target.value })}
               className={`h-9 text-sm ${
@@ -588,6 +634,18 @@ export function StepStudentDetails({
                 </p>
               )}
             </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-slate-600 block">
+                10th Marksheet Image
+              </Label>
+              <input ref={tenthInputRef} type="file" accept="image/*" onChange={handleTenthSelect} className="hidden" />
+              <Button type="button" variant="outline" size="sm" onClick={() => tenthInputRef.current?.click()} className="h-8 text-xs w-full text-blue-600">
+                {data.tenthMarksheet ? 'Change Image' : 'Upload Marksheet'}
+              </Button>
+              {data.tenthMarksheetPreview && (
+                <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Attached</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -627,6 +685,24 @@ export function StepStudentDetails({
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold text-slate-600">
+                Passing Year <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                placeholder="e.g. 2022"
+                value={data.twelfthYear || ''}
+                onChange={(e) => onChange({ twelfthYear: e.target.value })}
+                className={`h-8 text-xs bg-white ${
+                  errorFields.twelfthYear ? 'border-red-500' : ''
+                }`}
+              />
+              {errorFields.twelfthYear && (
+                <p className="text-[10px] text-red-600">
+                  {errorFields.twelfthYear}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-slate-600">
                 Marks / Percentage (%) <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -641,6 +717,18 @@ export function StepStudentDetails({
                 <p className="text-[10px] text-red-600">
                   {errorFields.twelfthMarks}
                 </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-slate-600 block">
+                12th Marksheet Image
+              </Label>
+              <input ref={twelfthInputRef} type="file" accept="image/*" onChange={handleTwelfthSelect} className="hidden" />
+              <Button type="button" variant="outline" size="sm" onClick={() => twelfthInputRef.current?.click()} className="h-8 text-xs w-full text-blue-600">
+                {data.twelfthMarksheet ? 'Change Image' : 'Upload Marksheet'}
+              </Button>
+              {data.twelfthMarksheetPreview && (
+                <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Attached</p>
               )}
             </div>
           </div>
@@ -680,7 +768,7 @@ export function StepStudentDetails({
               }`}
             >
               <option value="">-- Select Course --</option>
-              {COURSES.map((c) => (
+              {coursesList.map((c) => (
                 <option key={c.code} value={c.code}>
                   {c.name}
                 </option>

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { UserPlus, Briefcase, TrendingUp, ChevronRight, CheckCircle2, Copy, Check } from 'lucide-react';
+import { UserPlus, Briefcase, TrendingUp, ChevronRight, CheckCircle2, Copy, Check, Trash2, KeyRound } from 'lucide-react';
 
 interface WorkerCard {
   id: string;
@@ -29,80 +29,71 @@ export default function WorkersPage() {
   const [invitedPin, setInvitedPin] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Delete state
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Reset password state
+  const [resetTarget, setResetTarget] = useState<WorkerCard | null>(null);
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
+
   const fetchWorkers = async () => {
     try {
-      const res = await fetch('/api/admissions');
-      const json = await res.json();
-      const data = json.data || [];
+      setIsLoading(true);
+      
+      // 1. Fetch real workers from our new secure JSON database
+      const workersRes = await fetch('/api/admin/workers');
+      const workersJson = await workersRes.json();
+      const realWorkers = workersJson.workers || [];
 
-      const workerMap: Record<string, { admissions: number; success: number }> = {};
-      let bossAdmissions = 0;
-      let bossSuccess = 0;
+      // 2. Fetch admissions to calculate real success stats
+      const admissionsRes = await fetch('/api/admissions');
+      const admissionsJson = await admissionsRes.json();
+      const admissionsData = admissionsJson.data || [];
 
-      if (data && data.length > 0) {
-        data.forEach((row: any) => {
-          const wName = row.worker_name || 'Agent Ramesh';
-          const wEmail = (row.worker_email || '').toLowerCase();
-          const isRowBoss = wName.toLowerCase().includes('admin') || wName.toLowerCase().includes('boss') || wEmail.includes('boss');
-
-          if (isRowBoss) {
-            bossAdmissions += 1;
-            const s = (row.status || '').toUpperCase();
-            if (s === 'ENROLLED') bossSuccess += 1;
-          } else {
-            if (!workerMap[wName]) workerMap[wName] = { admissions: 0, success: 0 };
-            workerMap[wName].admissions += 1;
-            const s = (row.status || '').toUpperCase();
-            if (s === 'ENROLLED') workerMap[wName].success += 1;
-          }
-        });
-      }
-
-      // Merge with custom saved workers from localStorage if any
-      const savedCustom = JSON.parse(localStorage.getItem('CUSTOM_WORKERS') || '[]');
-      savedCustom.forEach((cw: { name?: string }) => {
-        if (cw?.name && !workerMap[cw.name] && !cw.name.toLowerCase().includes('boss')) {
-          workerMap[cw.name] = { admissions: 0, success: 0 };
+      // Map stats
+      const statsMap: Record<string, { total: number; success: number }> = {};
+      admissionsData.forEach((row: any) => {
+        const email = (row.worker_email || '').toLowerCase();
+        if (!statsMap[email]) statsMap[email] = { total: 0, success: 0 };
+        statsMap[email].total += 1;
+        if ((row.status || '').toUpperCase() === 'ENROLLED') {
+          statsMap[email].success += 1;
         }
       });
 
-      // Default baseline for Boss if fresh database
-      if (bossAdmissions === 0) {
-        bossAdmissions = 14;
-        bossSuccess = 13;
-      }
-      const bossRate = Math.round((bossSuccess / Math.max(1, bossAdmissions)) * 100);
-
-      const bossCard: WorkerCard = {
-        id: 'BOSS-001',
-        name: 'Super Admin (Director & Counselor)',
-        email: 'boss@infotech.pro',
-        status: 'ACTIVE',
-        isBoss: true,
-        admissions: bossAdmissions,
-        successRate: `${bossRate}%`,
-      };
-
-      const otherWorkers: WorkerCard[] = Object.keys(workerMap).map((key, index) => {
-        const stats = workerMap[key];
-        const rate = stats.admissions > 0 ? Math.round((stats.success / stats.admissions) * 100) : 0;
+      // Format workers with stats
+      const formattedWorkers: WorkerCard[] = realWorkers.map((w: any) => {
+        const stats = statsMap[w.email.toLowerCase()] || { total: 0, success: 0 };
+        const rate = stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
         return {
-          id: `WK-10${index + 1}`,
-          name: key,
-          email: `${key.split(' ')[0].toLowerCase()}@infotech.pro`,
+          id: w.id,
+          name: w.name,
+          email: w.email,
           status: 'ACTIVE',
-          admissions: stats.admissions,
-          successRate: `${rate}%`,
+          admissions: stats.total,
+          successRate: `${rate}%`
         };
       });
 
-      setWorkers([bossCard, ...otherWorkers]);
-    } catch (_err) {
-      setWorkers([
-        { id: 'BOSS-001', name: 'Super Admin (Director & Counselor)', email: 'boss@infotech.pro', status: 'ACTIVE', isBoss: true, admissions: 14, successRate: '93%' },
-        { id: 'WK-001', name: 'Agent Ramesh', email: 'ramesh@infotech.pro', status: 'ACTIVE', admissions: 12, successRate: '92%' },
-        { id: 'WK-002', name: 'Pooja Verma', email: 'pooja@infotech.pro', status: 'ACTIVE', admissions: 7, successRate: '85%' },
-      ]);
+      // Boss Card (Fixed Top) — always real data from DB
+      const bossStats = statsMap['info@admin.com'] || { total: 0, success: 0 };
+      const bossRate = bossStats.total > 0 ? Math.round((bossStats.success / bossStats.total) * 100) : 0;
+      
+      const bossCard: WorkerCard = {
+        id: 'ADM-01',
+        name: 'Super Admin (Director & Counselor)',
+        email: 'info@admin.com',
+        status: 'ACTIVE',
+        isBoss: true,
+        admissions: bossStats.total,
+        successRate: `${bossRate}%`,
+      };
+
+      setWorkers([bossCard, ...formattedWorkers]);
+    } catch (err) {
+      console.error('Failed to load workers', err);
     } finally {
       setIsLoading(false);
     }
@@ -116,23 +107,28 @@ export default function WorkersPage() {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
 
-    const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
-    const newWorkerEntry = {
-      id: `WK-10${workers.length + 1}`,
-      name: name.trim(),
-      email: email.trim(),
-      status: 'INVITED' as const,
-      admissions: 0,
-      successRate: '0%',
-    };
+    // Generate a secure 6-digit PIN instead of 4 for better security
+    const securePin = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    try {
+      const res = await fetch('/api/admin/workers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password: securePin })
+      });
 
-    // Save to localStorage for instant persistence across reloads
-    const savedCustom = JSON.parse(localStorage.getItem('CUSTOM_WORKERS') || '[]');
-    savedCustom.push(newWorkerEntry);
-    localStorage.setItem('CUSTOM_WORKERS', JSON.stringify(savedCustom));
+      const data = await res.json();
+      
+      if (!res.ok) {
+        alert(data.error || 'Failed to create worker');
+        return;
+      }
 
-    setWorkers((prev) => [newWorkerEntry, ...prev]);
-    setInvitedPin(randomPin);
+      setWorkers((prev) => [data.worker, ...prev]);
+      setInvitedPin(securePin); // Show PIN in UI for admin to share
+    } catch (err) {
+      alert('Error creating worker');
+    }
   };
 
   const closeDialog = () => {
@@ -147,6 +143,49 @@ export default function WorkersPage() {
       navigator.clipboard.writeText(invitedPin);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleDelete = async (workerId: string) => {
+    if (!confirm('Are you sure you want to remove this worker? This cannot be undone.')) return;
+    setDeletingId(workerId);
+    try {
+      const res = await fetch(`/api/admin/workers/${workerId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        setWorkers((prev) => prev.filter((w) => w.id !== workerId));
+      } else {
+        alert(data.error || 'Failed to delete worker');
+      }
+    } catch {
+      alert('Error deleting worker');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTarget || !resetNewPassword || resetNewPassword.length < 6) return;
+    setIsResetting(true);
+    setResetMsg(null);
+    try {
+      const res = await fetch(`/api/admin/workers/${resetTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: resetNewPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetMsg(`✅ Password for ${resetTarget.name} reset successfully!`);
+        setResetNewPassword('');
+      } else {
+        setResetMsg(`❌ ${data.error || 'Failed to reset password'}`);
+      }
+    } catch {
+      setResetMsg('❌ Error resetting password');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -195,7 +234,7 @@ export default function WorkersPage() {
                     </button>
                   </div>
                   <p className="text-xs text-emerald-600">
-                    Agent {name} can now sign into INFO TECH.
+                    Agent {name} can now sign into the Admissions Portal.
                   </p>
                 </div>
                 <Button onClick={closeDialog} className="w-full h-12 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer">
@@ -218,7 +257,7 @@ export default function WorkersPage() {
                   <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Official Email</Label>
                   <Input
                     className="h-12 rounded-xl"
-                    placeholder="vikas@infotech.pro"
+                    placeholder="worker@yourdomain.com"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -269,7 +308,7 @@ export default function WorkersPage() {
                         ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md shadow-amber-500/25 text-2xl"
                         : "bg-gradient-to-br from-blue-50 to-blue-100/50 text-blue-600 border border-blue-100 text-xl"
                     )}>
-                      {worker.isBoss ? '👑' : worker.name.split(' ').map((n: string) => n[0]).join('')}
+                      {worker.isBoss ? '👑' : (worker.name || 'W').split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">
@@ -310,23 +349,86 @@ export default function WorkersPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <Link href={`/admin/dashboard/workers/${encodeURIComponent(worker.name.replace(/\s+/g, '-'))}`} className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Link href={`/admin/dashboard/workers/${encodeURIComponent(worker.id)}`} className="flex-1">
                     <Button variant="outline" className={cn(
-                      "w-full h-11 rounded-xl font-bold transition-all cursor-pointer",
+                      "w-full h-10 rounded-xl font-bold transition-all cursor-pointer text-sm",
                       worker.isBoss
                         ? "bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-200"
                         : "bg-white border-slate-200 hover:bg-slate-50 hover:text-blue-600"
                     )}>
-                      View Drilldown <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
+                      View <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
                     </Button>
                   </Link>
+                  {!worker.isBoss && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title="Reset Password"
+                        onClick={() => { setResetTarget(worker); setResetMsg(null); setResetNewPassword(''); }}
+                        className="h-10 w-10 rounded-xl border-slate-200 text-blue-600 hover:bg-blue-50 cursor-pointer p-0 flex items-center justify-center"
+                      >
+                        <KeyRound className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title="Delete Worker"
+                        disabled={deletingId === worker.id}
+                        onClick={() => handleDelete(worker.id)}
+                        className="h-10 w-10 rounded-xl border-red-200 text-red-500 hover:bg-red-50 cursor-pointer p-0 flex items-center justify-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
       )}
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetTarget} onOpenChange={(open) => { if (!open) { setResetTarget(null); setResetMsg(null); setResetNewPassword(''); } }}>
+        <DialogContent className="w-[90vw] sm:max-w-md p-6 bg-white border border-slate-200 shadow-2xl rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-blue-600" />
+              Reset Password — {resetTarget?.name}
+            </DialogTitle>
+            <p className="text-sm text-slate-500 mt-1">Set a new password for this worker. Share it with them directly.</p>
+          </DialogHeader>
+          <form onSubmit={handleResetPassword} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">New Password (min 6 chars)</Label>
+              <Input
+                className="h-12 rounded-xl"
+                type="text"
+                placeholder="Enter new password"
+                value={resetNewPassword}
+                onChange={(e) => setResetNewPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+            </div>
+            {resetMsg && (
+              <p className={`text-sm font-medium p-3 rounded-xl ${resetMsg.startsWith('✅') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                {resetMsg}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" onClick={() => setResetTarget(null)} className="flex-1 h-11 rounded-xl cursor-pointer">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isResetting} className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer">
+                {isResetting ? 'Saving...' : 'Reset Password'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

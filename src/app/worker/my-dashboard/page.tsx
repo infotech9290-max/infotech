@@ -60,6 +60,7 @@ const statusBadgeStyles: Record<StatusKey, string> = {
 
 function HomeView({
   workerName,
+  brandName,
   admissions,
   isLoading,
   onGoToOverview,
@@ -67,6 +68,7 @@ function HomeView({
   onSelectStudent,
 }: {
   workerName: string;
+  brandName: string;
   admissions: AdmissionRecord[];
   isLoading: boolean;
   onGoToOverview: () => void;
@@ -87,7 +89,7 @@ function HomeView({
             Welcome back, <br /> <span className="text-blue-400 capitalize">{workerName}!</span>
           </h2>
           <p className="text-slate-300 text-base sm:text-lg max-w-xl leading-relaxed">
-            You are currently logged into the INFO TECH admissions network. Begin a new application or manage your recent student registrations below.
+            You are currently logged into the {brandName} network. Begin a new application or manage your recent student registrations below.
           </p>
         </div>
         {/* Action Card */}
@@ -167,7 +169,7 @@ function HomeView({
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 font-mono mt-0.5">
-                        ID: #{record.unique_id} &bull; Course: <span className="text-slate-700 font-semibold">{record.graduation_course || 'General'}</span>
+                        ID: #{record.unique_id} &bull; Course: <span className="text-slate-700 font-semibold">{record.graduation_course }</span>
                       </p>
                     </div>
                   </div>
@@ -175,7 +177,7 @@ function HomeView({
                   <div className="flex items-center justify-between sm:justify-end gap-5 text-xs text-slate-500 border-t sm:border-t-0 pt-2 sm:pt-0">
                     <div className="text-right">
                       <span className="block text-[10px] text-slate-400 uppercase font-semibold">Payment</span>
-                      <span className="font-bold text-slate-800">{record.payment_method || 'UPI'}</span>
+                      <span className="font-bold text-slate-800">{record.payment_method }</span>
                     </div>
                     <div className="text-right">
                       <span className="block text-[10px] text-slate-400 uppercase font-semibold">Registered</span>
@@ -263,7 +265,7 @@ function OverviewView({
       `"${r.graduation_course || ''}"`,
       `"${normalizeStatus(r.status)}"`,
       `"${r.tenth_marks || ''}"`,
-      `"${r.payment_method || 'UPI'}"`,
+      `"${r.payment_method }"`,
       `"${r.payment_utr || ''}"`,
       `"${r.balance_due || 0}"`,
       `"${new Date(r.created_at).toLocaleDateString('en-GB')}"`,
@@ -417,7 +419,7 @@ function OverviewView({
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
                         <span className="font-mono text-slate-600">ID: #{record.unique_id}</span>
                         <span>&bull;</span>
-                        <span className="text-slate-800 font-semibold">{record.graduation_course || 'General'}</span>
+                        <span className="text-slate-800 font-semibold">{record.graduation_course }</span>
                         <span>&bull;</span>
                         <span>10th: {record.tenth_marks || 'N/A'}</span>
                       </div>
@@ -427,7 +429,7 @@ function OverviewView({
                   <div className="flex flex-wrap items-center justify-between md:justify-end gap-6 border-t md:border-t-0 pt-4 md:pt-0">
                     <div className="text-left md:text-right">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Payment Mode</p>
-                      <p className="font-bold text-slate-800 text-sm mt-0.5">{record.payment_method || 'UPI QR'}</p>
+                      <p className="font-bold text-slate-800 text-sm mt-0.5">{record.payment_method }</p>
                       {record.payment_utr && (
                         <p className="text-[10px] font-mono text-slate-400">UTR: {record.payment_utr.slice(0, 14)}...</p>
                       )}
@@ -452,12 +454,12 @@ function OverviewView({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const phone = (record as any).phone || '9876543210';
+                          const phone = (record as any).phone || '';
                           const clean = phone.replace(/[^0-9]/g, '');
                           const due = Number(record.balance_due || 0);
                           const text = due > 0
-                            ? encodeURIComponent(`Dear ${record.student_name}, this is a reminder from INFO TECH regarding your pending admission balance fee of ₹${due.toLocaleString('en-IN')} for ${record.graduation_course || 'Course'}. Kindly clear the dues via UPI or contact your counselor.`)
-                            : encodeURIComponent(`Hello ${record.student_name}! Congratulations on your enrollment in INFO TECH (ID: #${record.unique_id}) for ${record.graduation_course || 'Course'}. Welcome aboard!`);
+                            ? encodeURIComponent(`Dear ${record.student_name}, this is a reminder from our Institute regarding your pending admission balance fee of ₹${due.toLocaleString('en-IN')} for ${record.graduation_course || ''}. Kindly clear the dues via UPI or contact your counselor.`)
+                            : encodeURIComponent(`Hello ${record.student_name}! Congratulations on your enrollment (ID: #${record.unique_id}) for ${record.graduation_course || ''}. Welcome aboard!`);
                           window.open(`https://wa.me/91${clean.slice(-10)}?text=${text}`, '_blank');
                         }}
                         className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 transition-colors cursor-pointer shadow-2xs"
@@ -490,6 +492,7 @@ function OverviewView({
 }
 
 function SettingsView() {
+  const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -510,15 +513,35 @@ function SettingsView() {
       return;
     }
 
+    if (!user?.email) {
+      setStatusMessage({ type: 'error', text: 'User email not found.' });
+      return;
+    }
+
     setIsUpdating(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setStatusMessage({ type: 'success', text: 'Password successfully updated! Your account is secured.' });
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch {
-      setStatusMessage({ type: 'success', text: 'Password updated successfully!' });
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          currentPassword,
+          newPassword
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setStatusMessage({ type: 'success', text: 'Password successfully updated! Your account is secured.' });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setStatusMessage({ type: 'error', text: data.error || 'Failed to update password.' });
+      }
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: 'An error occurred while updating the password.' });
     } finally {
       setIsUpdating(false);
     }
@@ -601,16 +624,24 @@ function SettingsView() {
 // ─── Main Worker SPA Component ──────────────────────
 
 export default function WorkerSPA() {
-  const { role, user } = useAuth();
-  const workerName = user?.email?.split('@')[0] || 'Agent';
+  const { role, user, logout } = useAuth();
+  const workerName = user?.email?.split('@')[0] || '';
   const [mounted, setMounted] = useState<boolean>(false);
   const [activeView, setActiveView] = useState<ActiveView>('home');
   const [admissions, setAdmissions] = useState<AdmissionRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [brandName, setBrandName] = useState<string>('Admissions Portal');
 
   useEffect(() => {
     setMounted(true);
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((json) => {
+        const name = json.data?.brand?.websiteName;
+        if (name) setBrandName(name);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSelectRecord = (record: any) => {
@@ -680,7 +711,7 @@ export default function WorkerSPA() {
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
               <div className="text-left">
-                <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none">INFO TECH</h1>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none">{brandName}</h1>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Authorized Admissions Agent</p>
               </div>
             </button>
@@ -705,13 +736,15 @@ export default function WorkerSPA() {
                 ))}
               </nav>
 
-              {/* Admin Back Button */}
+              {/* Stealth Admin Switch Button */}
               {mounted && role === 'ADMIN' && (
                 <Link
                   href="/admin/dashboard"
-                  className="bg-rose-500 hover:bg-rose-600 text-white font-bold h-10 px-5 rounded-full shadow-md transition-all text-xs flex items-center justify-center cursor-pointer"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer mr-2"
+                  title="Switch to Admin Panel"
                 >
-                  BOSS PANEL
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Switch to Admin Panel</span>
                 </Link>
               )}
 
@@ -723,7 +756,7 @@ export default function WorkerSPA() {
                   </div>
                   <div className="text-left hidden sm:block">
                     <p className="text-sm font-bold text-slate-900 capitalize">{workerName}</p>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase">ID: WK-001</p>
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase">ID: {user?.id || ""}</p>
                   </div>
                   <ChevronDown className="w-4 h-4 text-slate-400" />
                 </button>
@@ -746,12 +779,12 @@ export default function WorkerSPA() {
                       </button>
                     ))}
                     <div className="h-px bg-slate-100 my-1 mx-2" />
-                    <Link
-                      href="/login"
+                    <button
+                      onClick={logout}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" /> Secure Logout
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -780,6 +813,7 @@ export default function WorkerSPA() {
           {activeView === 'home' && (
             <HomeView
               workerName={workerName}
+              brandName={brandName}
               admissions={admissions}
               isLoading={isLoading}
               onGoToOverview={() => setActiveView('overview')}

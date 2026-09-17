@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import { compressImage } from '@/utils/compressImage';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,10 @@ interface StepFeeDetailsProps {
   onBack: () => void;
   onNext: () => void;
   errorFields: Record<string, string>;
+  minDownpayment?: number;
+  maxInstallments?: number;
+  predefinedInstalls?: number[];
+  predefinedMonths?: number[];
 }
 
 export function StepFeeDetails({
@@ -48,15 +53,19 @@ export function StepFeeDetails({
   onBack,
   onNext,
   errorFields,
+  minDownpayment = 0,
+  maxInstallments = 2,
+  predefinedInstalls = [],
+  predefinedMonths = [],
 }: StepFeeDetailsProps) {
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const [screenshotUploadError, setScreenshotUploadError] = useState<string | null>(null);
   const [bankSettings, setBankSettings] = useState({
-    upiId: 'infotech@icici',
-    bankName: 'SBI Bank',
-    accountName: 'INFO TECH PVT LTD',
-    accountNumber: '31245678901',
-    ifsc: 'SBIN0001234',
+    upiId: '',
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    ifsc: '',
   });
 
   useEffect(() => {
@@ -65,11 +74,11 @@ export function StepFeeDetails({
       .then((json) => {
         if (json.data) {
           setBankSettings({
-            upiId: json.data.upi_id || 'infotech@icici',
-            bankName: json.data.bank_name || 'INFO TECH PVT LTD',
-            accountName: json.data.bank_name || 'INFO TECH PVT LTD',
-            accountNumber: json.data.bank_account || '31245678901',
-            ifsc: json.data.bank_ifsc || 'SBIN0001234',
+            upiId: json.data.upi_id || '',
+            bankName: json.data.bank_name || '',
+            accountName: json.data.account_name || '',
+            accountNumber: json.data.bank_account || '',
+            ifsc: json.data.bank_ifsc || '',
           });
         }
       })
@@ -114,44 +123,64 @@ export function StepFeeDetails({
     });
   };
 
-  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isCompressingScreenshot, setIsCompressingScreenshot] = useState(false);
+  const [screenshotCompressedSize, setScreenshotCompressedSize] = useState<string | null>(null);
+
+  const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setScreenshotUploadError(null);
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
 
-      // Security Check 1: Non-zero size
       if (file.size === 0) {
         setScreenshotUploadError('Selected receipt screenshot is empty (0 bytes).');
         if (screenshotInputRef.current) screenshotInputRef.current.value = '';
         return;
       }
 
-      // Security Check 2: Max 5 MB size limit
-      if (file.size > 5 * 1024 * 1024) {
-        setScreenshotUploadError('Receipt screenshot exceeds 5 MB limit. Please select an image under 5 MB.');
+      if (file.size > 10 * 1024 * 1024) { // Increase base limit since we auto-compress anyway
+        setScreenshotUploadError('Receipt screenshot exceeds 10 MB limit. Please select a smaller image.');
         if (screenshotInputRef.current) screenshotInputRef.current.value = '';
         return;
       }
 
-      // Security Check 3: Strict MIME type & Extension check (Disallow SVG, scripts, executables, PDFs)
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
       const hasAllowedExt = /\.(jpe?g|png|webp)$/i.test(file.name);
       if (!allowedTypes.includes(file.type) || !hasAllowedExt) {
-        setScreenshotUploadError('Invalid file type: Only JPG, PNG, and WebP images are permitted (SVG and non-image files are blocked for security).');
+        setScreenshotUploadError('Invalid file type: Only JPG, PNG, and WebP images are permitted (SVG and non-image files are blocked).');
         if (screenshotInputRef.current) screenshotInputRef.current.value = '';
         return;
       }
 
-      // Clean up previous blob preview if any
-      if (data.paymentScreenshotPreview && data.paymentScreenshotPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(data.paymentScreenshotPreview);
-      }
+      setIsCompressingScreenshot(true);
+      try {
+        const compressed = await compressImage(file);
+        
+        if (data.paymentScreenshotPreview && data.paymentScreenshotPreview.startsWith('blob:')) {
+          URL.revokeObjectURL(data.paymentScreenshotPreview);
+        }
 
-      const previewUrl = URL.createObjectURL(file);
-      onChange({
-        paymentScreenshot: file,
-        paymentScreenshotPreview: previewUrl,
-      });
+        const previewUrl = URL.createObjectURL(compressed);
+        const sizeKB = (compressed.size / 1024).toFixed(1);
+        setScreenshotCompressedSize(`${sizeKB} KB`);
+        
+        onChange({
+          paymentScreenshot: compressed,
+          paymentScreenshotPreview: previewUrl,
+        });
+      } catch (err) {
+        console.warn('Screenshot compression fallback:', err);
+        if (data.paymentScreenshotPreview && data.paymentScreenshotPreview.startsWith('blob:')) {
+          URL.revokeObjectURL(data.paymentScreenshotPreview);
+        }
+        const previewUrl = URL.createObjectURL(file);
+        setScreenshotCompressedSize(`${(file.size / 1024).toFixed(1)} KB (original)`);
+        onChange({
+          paymentScreenshot: file,
+          paymentScreenshotPreview: previewUrl,
+        });
+      } finally {
+        setIsCompressingScreenshot(false);
+      }
     }
   };
 
@@ -206,18 +235,15 @@ export function StepFeeDetails({
               <Input
                 id="totalFee"
                 type="number"
-                readOnly
-                disabled
                 min="0"
                 step="1000"
               placeholder="120000"
               value={data.totalFee || ''}
               onChange={(e) => handleTotalFeeChange(parseFloat(e.target.value))}
-              className={`h-9 text-sm font-semibold bg-slate-50 text-slate-600 pr-8 ${
-                  errorFields.totalFee ? 'border-red-500' : ''
+              className={`h-9 text-sm font-semibold text-slate-900 ${
+                  errorFields.totalFee ? 'border-red-500' : 'bg-white'
                 }`}
               />
-              <LockIcon className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
             </div>
             {errorFields.totalFee && (
               <p className="text-[11px] text-red-600 font-medium">
@@ -263,11 +289,15 @@ export function StepFeeDetails({
                 errorFields.downPayment ? 'border-red-500' : ''
               }`}
             />
-            {errorFields.downPayment && (
+            {errorFields.downPayment ? (
               <p className="text-[11px] text-red-600 font-medium">
                 {errorFields.downPayment}
               </p>
-            )}
+            ) : minDownpayment > 0 ? (
+              <p className="text-[10px] text-slate-400 mt-1">
+                Min required: ₹{minDownpayment.toLocaleString('en-IN')}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -341,13 +371,15 @@ export function StepFeeDetails({
               </div>
             </div>
             <select
-              value={data.paymentPlan || '2 Installments'}
+              value={data.paymentPlan || '1 Installment'}
               onChange={(e) => onChange({ paymentPlan: e.target.value })}
               className="h-8 text-xs rounded-md border border-slate-200 bg-white px-2.5 text-slate-800 shrink-0"
             >
-              <option value="2 Installments">2 Installments (60d, 120d)</option>
-              <option value="3 Installments">3 Installments (45d, 90d, 135d)</option>
-              <option value="4 Installments">4 Quarterly Installments</option>
+              {Array.from({ length: maxInstallments }).map((_, i) => (
+                <option key={i + 1} value={`${i + 1} Installment${i + 1 > 1 ? 's' : ''}`}>
+                  {i + 1} Installment{i + 1 > 1 ? 's' : ''} {i === 0 ? '(30d)' : i === 1 ? '(60d, 120d)' : i === 2 ? '(45d, 90d, 135d)' : '(Quarterly)'}
+                </option>
+              ))}
             </select>
             
           </div>
@@ -359,20 +391,36 @@ export function StepFeeDetails({
               EMI / Installment Schedule Planner
             </h4>
             <div className="space-y-2">
-              {[...Array(parseInt(data.paymentPlan.charAt(0)) || 2)].map((_, i, arr) => {
-                const emiAmount = Math.round(calculatedBalanceDue / arr.length);
-                // Create dummy future dates for the schedule (e.g. current date + (i+1)*30 days)
-                const date = new Date();
-                date.setDate(date.getDate() + ((i + 1) * 30));
+              {(() => {
+                const numInstalls = Math.min(parseInt(data.paymentPlan.charAt(0)) || 1, maxInstallments);
+                let runningTotal = 0;
                 
-                return (
-                  <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-xs">
-                    <div className="font-semibold text-slate-700">Installment {i + 1}</div>
-                    <div className="text-slate-500">Due: {date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                    <div className="font-bold text-blue-700">₹{emiAmount.toLocaleString('en-IN')}</div>
-                  </div>
-                );
-              })}
+                return [...Array(numInstalls)].map((_, i) => {
+                  let emiAmount = 0;
+                  if (i === numInstalls - 1) {
+                    // Last installment takes whatever is left
+                    emiAmount = Math.max(0, calculatedBalanceDue - runningTotal);
+                  } else {
+                    // Use predefined if available and valid, otherwise equal split
+                    emiAmount = predefinedInstalls[i] > 0 
+                      ? predefinedInstalls[i] 
+                      : Math.round(calculatedBalanceDue / numInstalls);
+                    runningTotal += emiAmount;
+                  }
+
+                  const date = new Date();
+                  const monthGap = predefinedMonths[i] > 0 ? predefinedMonths[i] : (i + 1);
+                  date.setDate(date.getDate() + (monthGap * 30));
+                  
+                  return (
+                    <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                      <div className="font-semibold text-slate-700">Installment {i + 1}</div>
+                      <div className="text-slate-500">Due: {date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                      <div className="font-bold text-blue-700">₹{emiAmount.toLocaleString('en-IN')}</div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         )}
@@ -484,11 +532,21 @@ export function StepFeeDetails({
           <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/40 flex flex-col sm:flex-row items-center gap-5">
             {/* Visual QR Code Display */}
             <div className="w-36 h-36 bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-col items-center justify-center shrink-0">
-              <div className="w-full h-full border border-slate-100 rounded-lg flex flex-col items-center justify-center bg-slate-50">
-                <QrCode className="w-16 h-16 text-slate-800" />
-                <span className="text-[9px] font-mono text-slate-500 mt-1">
-                  OFFICIAL ADMISSIONS
-                </span>
+              <div className="w-full h-full border border-slate-100 rounded-lg flex flex-col items-center justify-center bg-white overflow-hidden relative">
+                {bankSettings.upiId ? (
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                      `upi://pay?pa=${bankSettings.upiId}&pn=${bankSettings.accountName || ''}`
+                    )}`}
+                    alt="UPI QR Code"
+                    className="w-full h-full object-contain p-1"
+                  />
+                ) : (
+                  <>
+                    <QrCode className="w-10 h-10 text-slate-300 mb-1" />
+                    <span className="text-[10px] text-slate-400">Loading...</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -497,7 +555,7 @@ export function StepFeeDetails({
                 <CheckCircle2 className="w-3.5 h-3.5" /> Official Verified QR
               </div>
               <h4 className="text-sm font-bold text-slate-900">
-                Scan INFO TECH Official Admission UPI QR
+                Scan Official Admission UPI QR
               </h4>
               <p className="text-xs text-slate-600">
                 UPI ID:{' '}
@@ -630,8 +688,8 @@ export function StepFeeDetails({
                     <p className="text-xs font-bold text-slate-800 truncate">
                       {data.paymentScreenshot?.name || 'Receipt_Screenshot.png'}
                     </p>
-                    <p className="text-[10px] text-slate-500">
-                      Receipt uploaded & verified
+                    <p className="text-[10px] text-emerald-600 font-medium">
+                      {screenshotCompressedSize ? `Auto-compressed: ${screenshotCompressedSize}` : 'Receipt uploaded'}
                     </p>
                   </div>
                 </div>
@@ -642,9 +700,10 @@ export function StepFeeDetails({
                     variant="outline"
                     size="sm"
                     onClick={() => screenshotInputRef.current?.click()}
+                    disabled={isCompressingScreenshot}
                     className="text-xs h-7 px-2"
                   >
-                    Change
+                    {isCompressingScreenshot ? '...' : 'Change'}
                   </Button>
                   <Button
                     type="button"
@@ -659,16 +718,16 @@ export function StepFeeDetails({
               </div>
             ) : (
               <div
-                onClick={() => screenshotInputRef.current?.click()}
+                onClick={() => !isCompressingScreenshot && screenshotInputRef.current?.click()}
                 className={`border border-dashed rounded-xl p-3 text-center cursor-pointer transition-colors ${
                   errorFields.paymentScreenshot
                     ? 'border-red-400 bg-red-50/20'
                     : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
                 }`}
               >
-                <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+                <UploadCloud className={`w-6 h-6 text-slate-400 mx-auto mb-1 ${isCompressingScreenshot ? 'animate-bounce text-blue-500' : ''}`} />
                 <span className="text-xs font-semibold text-slate-700 block">
-                  Upload Payment Screenshot
+                  {isCompressingScreenshot ? 'Compressing Screenshot...' : 'Upload Payment Screenshot'}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">
                   Screenshot of UPI confirmation or bank deposit slip (PNG/JPG)
