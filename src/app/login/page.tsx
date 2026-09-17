@@ -503,6 +503,7 @@ export default function LoginPage() {
                     placeholder="e.g. infotech9290@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    suppressHydrationWarning
                     className="h-12 bg-slate-950/70 border-slate-700/80 text-white pl-10 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-transparent rounded-xl text-sm transition-all"
                     required
                   />
@@ -530,6 +531,7 @@ export default function LoginPage() {
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    suppressHydrationWarning
                     className="h-12 bg-slate-950/70 border-slate-700/80 text-white pl-10 pr-10 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-transparent rounded-xl text-sm transition-all"
                     required
                   />
