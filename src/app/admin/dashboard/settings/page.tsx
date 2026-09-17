@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, Check, Loader2, Building2, Paintbrush, BookOpen, Plus, Trash2, LayoutTemplate, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Check, Loader2, Building2, Paintbrush, BookOpen, Plus, Trash2, LayoutTemplate, AlertCircle, KeyRound, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'brand' | 'fees' | 'payment' | 'database'>('fees');
+  const [activeTab, setActiveTab] = useState<'brand' | 'fees' | 'payment' | 'database' | 'security'>('fees');
   
   // Payment State
   const [upiId, setUpiId] = useState('');
@@ -91,6 +91,55 @@ export default function SettingsPage() {
     } catch {
       setDbStatus('error');
       setDbMsg('Network error. Please try again.');
+    }
+  };
+
+  // Admin Password Change State
+  const [adminCurrentPass, setAdminCurrentPass] = useState('');
+  const [adminNewPass, setAdminNewPass] = useState('');
+  const [adminConfirmPass, setAdminConfirmPass] = useState('');
+  const [adminPassStatus, setAdminPassStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [adminPassMsg, setAdminPassMsg] = useState('');
+
+  const handleAdminPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminNewPass !== adminConfirmPass) {
+      setAdminPassStatus('error');
+      setAdminPassMsg('New password and confirmation do not match.');
+      return;
+    }
+    if (adminNewPass.length < 6) {
+      setAdminPassStatus('error');
+      setAdminPassMsg('New password must be at least 6 characters long.');
+      return;
+    }
+
+    setAdminPassStatus('loading');
+    setAdminPassMsg('');
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'infotech9290@gmail.com',
+          currentPassword: adminCurrentPass,
+          newPassword: adminNewPass,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdminPassStatus('success');
+        setAdminPassMsg('✅ Super Admin password updated successfully in Supabase! Use your new password on next login.');
+        setAdminCurrentPass('');
+        setAdminNewPass('');
+        setAdminConfirmPass('');
+      } else {
+        setAdminPassStatus('error');
+        setAdminPassMsg(`❌ ${data.error || 'Failed to update password.'}`);
+      }
+    } catch {
+      setAdminPassStatus('error');
+      setAdminPassMsg('❌ Network error while updating password.');
     }
   };
 
@@ -252,6 +301,16 @@ export default function SettingsPage() {
         >
           <ShieldCheck className="w-4 h-4" />
           DB Setup
+        </button>
+        <button
+          onClick={() => setActiveTab('security')}
+          className={cn(
+            "px-5 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2",
+            activeTab === 'security' ? "border-purple-600 text-purple-700" : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+          )}
+        >
+          <KeyRound className="w-4 h-4" />
+          Admin Password
         </button>
       </div>
 
@@ -529,6 +588,106 @@ export default function SettingsPage() {
             </div>
             <p className="text-[11px] text-slate-500 mt-2">Vercel: Project → Settings → Environment Variables</p>
           </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: ADMIN SECURITY & PASSWORD */}
+      {activeTab === 'security' && (
+        <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 max-w-2xl">
+          <div className="p-6 border-b border-slate-100 flex items-center gap-4 bg-purple-50/50">
+            <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-700">
+              <KeyRound className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Super Admin Password & Security</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage master credentials for <strong className="text-purple-700">infotech9290@gmail.com</strong>
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAdminPasswordChange} className="p-6 sm:p-8 space-y-5">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-sm">
+                  SA
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-900">Super Admin Account</p>
+                  <p className="text-xs text-slate-500 font-mono">infotech9290@gmail.com</p>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                ACTIVE
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                Current Password
+              </Label>
+              <Input
+                type="password"
+                value={adminCurrentPass}
+                onChange={(e) => setAdminCurrentPass(e.target.value)}
+                placeholder="Enter current password (default: admin)"
+                required
+                className="h-12 rounded-xl bg-slate-50 border-slate-200"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                New Strong Password
+              </Label>
+              <Input
+                type="password"
+                value={adminNewPass}
+                onChange={(e) => setAdminNewPass(e.target.value)}
+                placeholder="Enter new password (min. 6 characters)"
+                required
+                className="h-12 rounded-xl bg-slate-50 border-slate-200"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                Confirm New Password
+              </Label>
+              <Input
+                type="password"
+                value={adminConfirmPass}
+                onChange={(e) => setAdminConfirmPass(e.target.value)}
+                placeholder="Re-enter new password to confirm"
+                required
+                className="h-12 rounded-xl bg-slate-50 border-slate-200"
+              />
+            </div>
+
+            {adminPassMsg && (
+              <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 ${
+                adminPassStatus === 'success'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                  : 'bg-red-50 border border-red-200 text-red-700'
+              }`}>
+                <span>{adminPassMsg}</span>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={adminPassStatus === 'loading' || !adminCurrentPass || !adminNewPass}
+              className="w-full h-12 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              {adminPassStatus === 'loading' ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Updating Supabase...</>
+              ) : adminPassStatus === 'success' ? (
+                <><Check className="w-4 h-4 mr-2" /> Password Updated!</>
+              ) : (
+                <><Lock className="w-4 h-4 mr-2" /> Update Super Admin Password</>
+              )}
+            </Button>
+          </form>
         </div>
       )}
 
