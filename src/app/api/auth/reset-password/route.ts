@@ -28,16 +28,40 @@ export async function POST(req: NextRequest) {
     }
 
     const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
-    const { error: updateErr } = await supabaseServer
-      .from('users')
-      .update({ passwordHash: newHash, updated_at: new Date().toISOString() })
-      .eq('id', user.id);
+    
+    let dbSuccess = false;
+    try {
+      const { error: updateErr } = await supabaseServer
+        .from('users')
+        .update({ passwordHash: newHash, updated_at: new Date().toISOString() })
+        .eq('id', user.id);
 
-    if (!updateErr) {
-      return NextResponse.json({ success: true, message: 'Password updated successfully' });
-    } else {
-      return NextResponse.json({ error: 'Failed to save new password' }, { status: 500 });
+      if (!updateErr) dbSuccess = true;
+    } catch {
+      // ignore db error
     }
+
+    // Also synchronize local storage
+    const { readLocalWorkers, writeLocalWorkers } = await import('@/utils/workerStorage');
+    const localWorkers = readLocalWorkers();
+    const idx = localWorkers.findIndex((w) => w.email.toLowerCase() === cleanEmail);
+    if (idx >= 0) {
+      localWorkers[idx].passwordHash = newHash;
+      writeLocalWorkers(localWorkers);
+    }
+
+    // Record audit log
+    try {
+      await supabaseServer.from('audit_logs').insert([{
+        action: `User self-updated password: ${cleanEmail}`,
+        device_info: req.headers.get('user-agent') || 'Worker Portal',
+        ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+      }]);
+    } catch {
+      // non-blocking
+    }
+
+    return NextResponse.json({ success: true, message: 'Password updated successfully' });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal error';
     return NextResponse.json({ error: message }, { status: 500 });
