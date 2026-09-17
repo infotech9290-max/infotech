@@ -96,7 +96,7 @@ export default function WorkersPage() {
 
       setWorkers([bossCard, ...formattedWorkers]);
     } catch (err) {
-      console.error('Failed to load workers', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to load workers', err);
     } finally {
       setIsLoading(false);
     }

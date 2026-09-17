@@ -190,7 +190,7 @@ export async function sendWorkerInviteEmail(params: {
     });
     return { success: true, message: `Email delivered to ${to}` };
   } catch (err: any) {
-    console.error('[EMAIL ERROR] Failed to send worker invite:', err);
+    if (process.env.NODE_ENV === 'development') console.error('[EMAIL ERROR] Failed to send worker invite:', err);
     return {
       success: false,
       message: err.message || 'SMTP delivery failed',

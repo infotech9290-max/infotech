@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       message: `Test email successfully sent to ${testTarget} via Gmail SMTP!`,
     });
   } catch (err: any) {
-    console.error('SMTP test connection failed:', err);
+    if (process.env.NODE_ENV === 'development') console.error('SMTP test connection failed:', err);
     return NextResponse.json(
       { error: err.message || 'Failed to authenticate with Gmail SMTP. Check your 16-character App Password.' },
       { status: 500 }

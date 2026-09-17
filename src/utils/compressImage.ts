@@ -12,7 +12,7 @@ export const compressImage = async (imageFile: File): Promise<File> => {
     const compressedFile = await imageCompression(imageFile, options);
     return compressedFile;
   } catch (error) {
-    console.error('Error compressing image:', error);
+    if (process.env.NODE_ENV === 'development') console.error('Error compressing image:', error);
     throw error;
   }
 };

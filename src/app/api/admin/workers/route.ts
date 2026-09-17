@@ -149,12 +149,12 @@ export async function POST(req: NextRequest) {
         if (error.code === '23505') { // unique violation
           return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
         }
-        console.error('Supabase worker insert error:', error);
+        if (process.env.NODE_ENV === 'development') console.error('Supabase worker insert error:', error);
       } else {
         dbSuccess = true;
       }
     } catch (dbErr) {
-      console.error('Supabase worker insert exception:', dbErr);
+      if (process.env.NODE_ENV === 'development') console.error('Supabase worker insert exception:', dbErr);
     }
 
     // 2. Dual persistence to local workers file

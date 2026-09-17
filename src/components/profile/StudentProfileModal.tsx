@@ -335,7 +335,7 @@ export function StudentProfileModal({
                         }
                         onOpenChange(false);
                       } catch (err) {
-                        console.error('Failed to update student status:', err);
+                        if (process.env.NODE_ENV === 'development') console.error('Failed to update student status:', err);
                         alert('Failed to update status. Please try again.');
                       } finally {
                         setIsSaving(false);
@@ -390,7 +390,7 @@ export function StudentProfileModal({
                     }
                     onOpenChange(false);
                   } catch (err) {
-                    console.error('Failed to settle balance:', err);
+                    if (process.env.NODE_ENV === 'development') console.error('Failed to settle balance:', err);
                     alert('Failed to update payment. Please try again.');
                   } finally {
                     setIsSaving(false);

@@ -686,7 +686,7 @@ export function AdmissionWizard({
         setCurrentStep(4);
         if (onSuccess) onSuccess(newStudentRecord);
       } catch (dbErr) {
-        console.error('Admission submission error:', dbErr);
+        if (process.env.NODE_ENV === 'development') console.error('Admission submission error:', dbErr);
         const msg = dbErr instanceof Error ? dbErr.message : 'Failed to connect to the database. Admission not saved.';
         setErrors([msg]);
         setIsSubmitting(false);

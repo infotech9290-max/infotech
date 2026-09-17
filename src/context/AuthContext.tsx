@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         clearAllAuthCookies();
       }
     } catch (e) {
-      console.error('Failed to restore session from localStorage:', e);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to restore session from localStorage:', e);
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +101,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.setItem(STORAGE_ROLE_KEY, targetRole);
       localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(userDetails));
     } catch (e) {
-      console.error('Failed to persist auth session:', e);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to persist auth session:', e);
     }
 
     // STEALTH MODE: Both Admin and Worker land on the Worker Dashboard initially.
@@ -121,7 +121,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(updatedUser));
       }
     } catch (e) {
-      console.error('Failed to save switched role:', e);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to save switched role:', e);
     }
 
     if (newRole === 'ADMIN') {
@@ -143,7 +143,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem('infotech_portal_auth_user');
       sessionStorage.clear();
     } catch (e) {
-      console.error('Failed to clear auth session on logout:', e);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to clear auth session on logout:', e);
     }
 
     try {

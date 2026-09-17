@@ -31,7 +31,7 @@ export default function FootprintsPage() {
         setLogs([]);
       }
     } catch (err) {
-      console.error('Failed to load audit logs:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to load audit logs:', err);
       setErrorMsg('Unable to retrieve audit telemetry. Ensure database is set up.');
       setLogs([]);
     } finally {

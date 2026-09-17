@@ -14,7 +14,7 @@ function readLocalSettings(): Record<string, any> | null {
       return JSON.parse(content);
     }
   } catch (err) {
-    console.error('Error reading local settings file:', err);
+    if (process.env.NODE_ENV === 'development') console.error('Error reading local settings file:', err);
   }
   return null;
 }
@@ -27,7 +27,7 @@ function writeLocalSettings(data: Record<string, any>) {
     }
     fs.writeFileSync(LOCAL_SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Error writing local settings file:', err);
+    if (process.env.NODE_ENV === 'development') console.error('Error writing local settings file:', err);
   }
 }
 
@@ -75,7 +75,7 @@ export async function GET() {
       },
     });
   } catch (err: any) {
-    console.error('Settings GET Error:', err);
+    if (process.env.NODE_ENV === 'development') console.error('Settings GET Error:', err);
     if (localData) {
       return NextResponse.json({
         data: {
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    console.error('Settings POST Error:', err);
+    if (process.env.NODE_ENV === 'development') console.error('Settings POST Error:', err);
     const message = err?.message || (err instanceof Error ? err.message : String(err)) || 'Failed to save settings';
     return NextResponse.json({ error: message, code: err?.code }, { status: 500 });
   }

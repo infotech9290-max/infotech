@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0f172a"/>
+  <rect x="40" y="40" width="1120" height="550" rx="24" fill="#1e293b"/>
+  <circle cx="600" cy="220" r="80" fill="#0ea5e9" opacity="0.15"/>
+  <path d="M600 170L660 200L600 230L540 200Z" fill="#0ea5e9"/>
+  <path d="M630 213v28c0 12-15 20-30 20s-30-8-30-20v-28" fill="none" stroke="#0ea5e9" stroke-width="4"/>
+  <line x1="660" y1="200" x2="660" y2="235" stroke="#0ea5e9" stroke-width="4"/>
+  <circle cx="660" cy="237" r="5" fill="#0ea5e9"/>
+  <text x="600" y="360" font-family="Arial,sans-serif" font-size="54" font-weight="bold" fill="white" text-anchor="middle">Admission Management Portal</text>
+  <text x="600" y="430" font-family="Arial,sans-serif" font-size="30" fill="#94a3b8" text-anchor="middle">Professional Institute Admission System</text>
+  <rect x="460" y="470" width="280" height="50" rx="25" fill="#0ea5e9"/>
+  <text x="600" y="503" font-family="Arial,sans-serif" font-size="22" font-weight="bold" fill="white" text-anchor="middle">Manage Admissions →</text>
+</svg>

@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     });
     return response;
   } catch (err: any) {
-    console.error('Login error:', err);
+    if (process.env.NODE_ENV === 'development') console.error('Login error:', err);
     const message = err?.message || (err instanceof Error ? err.message : 'Internal error');
     return NextResponse.json({ error: message }, { status: 500 });
   }

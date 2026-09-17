@@ -16,8 +16,32 @@ const geistMono = Geist_Mono({
 export const viewport = { themeColor: "#0ea5e9" };
 
 export const metadata: Metadata = {
-  title: "Admission Portal",
-  description: "Admission — Professional Admission Management System"
+  title: {
+    default: "Admission Portal — Institute Management System",
+    template: "%s | Admission Portal",
+  },
+  description:
+    "Professional Admission Management System — Manage student admissions, fees, EMI plans, documents and counselor staff from one secure dashboard.",
+  keywords: ["admission portal", "institute management", "student admission", "fee management", "counselor dashboard"],
+  authors: [{ name: "InfoTech" }],
+  robots: { index: false, follow: false },
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
+  openGraph: {
+    title: "Admission Portal — Institute Management System",
+    description: "Professional Admission Management System for Institutes & Coaching Centers",
+    type: "website",
+    images: [{ url: "/og-image.svg", width: 1200, height: 630, alt: "Admission Portal" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Admission Portal",
+    description: "Professional Admission Management System",
+    images: ["/og-image.svg"],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       updatedRecord,
     });
   } catch (err) {
-    console.error('Unexpected server error in update-status:', err);
+    if (process.env.NODE_ENV === 'development') console.error('Unexpected server error in update-status:', err);
     return NextResponse.json(
       { error: 'Internal server error while processing student update.' },
       { status: 500 }

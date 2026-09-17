@@ -52,7 +52,7 @@ export default function SettingsPage() {
           setDbWarning(json.warning);
         }
       } catch (err) {
-        console.error('Failed to fetch payment settings from API', err);
+        if (process.env.NODE_ENV === 'development') console.error('Failed to fetch payment settings from API', err);
       }
     };
     fetchSettings();
@@ -105,7 +105,7 @@ export default function SettingsPage() {
         setDbStats(json);
       }
     } catch (err) {
-      console.error('Failed to fetch DB stats:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to fetch DB stats:', err);
     } finally {
       setIsFetchingStats(false);
     }
@@ -350,7 +350,7 @@ export default function SettingsPage() {
         setSaveMessage('Changes Saved');
       }
     } catch (err) {
-      console.error('Failed to save settings:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to save settings:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to save settings';
       setSaveStatus('error');
       setSaveMessage(errMsg);

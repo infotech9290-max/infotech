@@ -689,7 +689,7 @@ export default function WorkerSPA() {
       const s = mapDbRecordToStudent(record);
       setSelectedStudent(s);
     } catch (err) {
-      console.error('Failed to map student record:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to map student record:', err);
     }
   };
 
@@ -720,7 +720,7 @@ export default function WorkerSPA() {
         setAdmissions(json.data as AdmissionRecord[]);
       }
     } catch (err) {
-      console.error('Failed to load admissions:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to load admissions:', err);
     } finally {
       setIsLoading(false);
     }

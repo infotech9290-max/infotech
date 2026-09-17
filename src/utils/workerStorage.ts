@@ -23,7 +23,7 @@ export function readLocalWorkers(): LocalWorker[] {
       return Array.isArray(data) ? data : [];
     }
   } catch (err) {
-    console.error('Error reading local workers file:', err);
+    if (process.env.NODE_ENV === 'development') console.error('Error reading local workers file:', err);
   }
   return [];
 }
@@ -36,6 +36,6 @@ export function writeLocalWorkers(workers: LocalWorker[]) {
     }
     fs.writeFileSync(LOCAL_WORKERS_FILE, JSON.stringify(workers, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Error writing local workers file:', err);
+    if (process.env.NODE_ENV === 'development') console.error('Error writing local workers file:', err);
   }
 }

@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'File upload failed';
-    console.error('Upload Error:', message);
+    if (process.env.NODE_ENV === 'development') console.error('Upload Error:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

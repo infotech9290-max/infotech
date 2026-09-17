@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Student, StudentStatus } from '@/types/student';
 import { MetricsGrid } from '@/components/dashboard/MetricsGrid';
 import { StudentList } from '@/components/dashboard/StudentList';
@@ -9,11 +9,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import { mapDbRecordToStudent, DbAdmissionRecord } from '@/utils/studentMapper';
 import { supabase } from '@/utils/supabaseClient';
+import dynamic from 'next/dynamic';
 
-import WorkersPage from './workers/page';
-import SettingsPage from './settings/page';
-import FootprintsPage from './footprints/page';
-import { AdmissionWizard } from '@/components/admission/AdmissionWizard';
+// Lazy-load heavy tab pages — only loaded when user clicks that tab
+const WorkersPage = dynamic(() => import('./workers/page'), { ssr: false, loading: () => <TabSkeleton /> });
+const SettingsPage = dynamic(() => import('./settings/page'), { ssr: false, loading: () => <TabSkeleton /> });
+const FootprintsPage = dynamic(() => import('./footprints/page'), { ssr: false, loading: () => <TabSkeleton /> });
+const AdmissionWizard = dynamic(() => import('@/components/admission/AdmissionWizard').then(m => ({ default: m.AdmissionWizard })), { ssr: false, loading: () => <TabSkeleton /> });
+
+function TabSkeleton() {
+  return (
+    <div className="p-6 space-y-4 animate-pulse">
+      <div className="h-8 w-48 bg-slate-800 rounded-xl" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-slate-800 rounded-xl" />)}
+      </div>
+      <div className="h-64 bg-slate-800 rounded-xl" />
+    </div>
+  );
+}
 
 type AdminTab = 'overview' | 'workers' | 'settings' | 'footprints' | 'admission';
 
@@ -79,7 +93,7 @@ export default function AdminOverview() {
       setFetchError('Unable to load admissions data. Please try again.');
       setStudents([]);
     } catch (err) {
-      console.error('Error fetching admissions from API:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Error fetching admissions from API:', err);
       setFetchError('Network error while connecting to admissions server.');
       setStudents([]);
     } finally {

@@ -75,7 +75,7 @@ export default function WorkerDrilldownPage() {
           setStudents(records.map(mapDbRecordToStudent));
         }
       } catch (err) {
-        console.error('Error fetching worker drilldown data:', err);
+        if (process.env.NODE_ENV === 'development') console.error('Error fetching worker drilldown data:', err);
         setStudents([]);
       } finally {
         setIsLoading(false);
