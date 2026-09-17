@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/utils/supabaseServer';
 import crypto from 'crypto';
+import { readLocalWorkers, writeLocalWorkers } from '@/utils/workerStorage';
 
 /** Simple server-side admin check via role cookie set at login */
 function isAdminRequest(req: NextRequest): boolean {
@@ -27,13 +28,22 @@ export async function DELETE(
       return NextResponse.json({ error: 'Cannot delete the Super Admin account' }, { status: 403 });
     }
 
-    const { error } = await supabaseServer
-      .from('users')
-      .delete()
-      .eq('id', id)
-      .eq('role', 'WORKER'); // Safety: only delete workers, never admins
+    try {
+      await supabaseServer
+        .from('users')
+        .delete()
+        .eq('id', id)
+        .eq('role', 'WORKER'); // Safety: only delete workers, never admins
+    } catch {
+      // ignore db error
+    }
 
-    if (error) throw error;
+    // Also remove from local workers storage
+    const localWorkers = readLocalWorkers();
+    const filtered = localWorkers.filter((w) => w.id !== id);
+    if (filtered.length !== localWorkers.length) {
+      writeLocalWorkers(filtered);
+    }
 
     try {
       await supabaseServer.from('audit_logs').insert([{
@@ -78,13 +88,23 @@ export async function PATCH(
 
     const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
 
-    const { error } = await supabaseServer
-      .from('users')
-      .update({ passwordHash: newHash, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('role', 'WORKER');
+    try {
+      await supabaseServer
+        .from('users')
+        .update({ passwordHash: newHash, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('role', 'WORKER');
+    } catch {
+      // ignore db error
+    }
 
-    if (error) throw error;
+    // Also update local workers file
+    const localWorkers = readLocalWorkers();
+    const idx = localWorkers.findIndex((w) => w.id === id);
+    if (idx >= 0) {
+      localWorkers[idx].passwordHash = newHash;
+      writeLocalWorkers(localWorkers);
+    }
 
     try {
       await supabaseServer.from('audit_logs').insert([{
