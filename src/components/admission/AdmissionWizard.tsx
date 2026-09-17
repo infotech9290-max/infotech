@@ -449,7 +449,9 @@ export function AdmissionWizard({
         if (studentData.photo) {
           const photoData = new FormData();
           photoData.append('file', studentData.photo);
-          photoData.append('bucket', 'photos');
+          photoData.append('bucket', 'admissions');
+          photoData.append('studentId', studentId);
+          photoData.append('fileType', 'photo');
           const photoRes = await fetch('/api/upload', { method: 'POST', body: photoData });
           if (photoRes.ok) {
             const pJson = await photoRes.json();
@@ -462,7 +464,9 @@ export function AdmissionWizard({
         if (studentData.pdfDossier) {
           const pdfData = new FormData();
           pdfData.append('file', studentData.pdfDossier);
-          pdfData.append('bucket', 'dossiers');
+          pdfData.append('bucket', 'admissions');
+          pdfData.append('studentId', studentId);
+          pdfData.append('fileType', 'dossier');
           const pdfRes = await fetch('/api/upload', { method: 'POST', body: pdfData });
           if (pdfRes.ok) {
             const pdfJson = await pdfRes.json();
@@ -475,7 +479,9 @@ export function AdmissionWizard({
         if (feeData.paymentScreenshot) {
           const ssData = new FormData();
           ssData.append('file', feeData.paymentScreenshot);
-          ssData.append('bucket', 'receipts');
+          ssData.append('bucket', 'admissions');
+          ssData.append('studentId', studentId);
+          ssData.append('fileType', 'payment_receipt');
           const ssRes = await fetch('/api/upload', { method: 'POST', body: ssData });
           if (ssRes.ok) {
             const ssJson = await ssRes.json();
@@ -488,7 +494,9 @@ export function AdmissionWizard({
         if (studentData.tenthMarksheet) {
           const m10Data = new FormData();
           m10Data.append('file', studentData.tenthMarksheet);
-          m10Data.append('bucket', 'dossiers');
+          m10Data.append('bucket', 'admissions');
+          m10Data.append('studentId', studentId);
+          m10Data.append('fileType', 'marksheet_10th');
           const m10Res = await fetch('/api/upload', { method: 'POST', body: m10Data });
           if (m10Res.ok) {
             const m10Json = await m10Res.json();
@@ -501,7 +509,9 @@ export function AdmissionWizard({
         if (studentData.twelfthMarksheet) {
           const m12Data = new FormData();
           m12Data.append('file', studentData.twelfthMarksheet);
-          m12Data.append('bucket', 'dossiers');
+          m12Data.append('bucket', 'admissions');
+          m12Data.append('studentId', studentId);
+          m12Data.append('fileType', 'marksheet_12th');
           const m12Res = await fetch('/api/upload', { method: 'POST', body: m12Data });
           if (m12Res.ok) {
             const m12Json = await m12Res.json();

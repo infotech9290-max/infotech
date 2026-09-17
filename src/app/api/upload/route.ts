@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const rawBucket = (formData.get('bucket') as string) || 'admissions';
+    const rawStudentId = (formData.get('studentId') as string) || (formData.get('uniqueId') as string) || '';
+    const rawFileType = (formData.get('fileType') as string) || (formData.get('category') as string) || '';
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -43,13 +45,22 @@ export async function POST(req: NextRequest) {
 
     // Bucket whitelist
     const ALLOWED_BUCKETS = ['photos', 'dossiers', 'receipts', 'admissions'];
-    const bucket = ALLOWED_BUCKETS.includes(rawBucket) ? rawBucket : 'admissions';
+
+    // Sanitize studentId & fileType
+    const safeStudentId = rawStudentId.replace(/[^a-zA-Z0-9_-]/g, '').trim();
+    const safeFileType = rawFileType.replace(/[^a-zA-Z0-9_-]/g, '').trim();
+
+    // If studentId is provided, organize under the student's dedicated folder in 'admissions' bucket
+    const bucket = safeStudentId ? 'admissions' : (ALLOWED_BUCKETS.includes(rawBucket) ? rawBucket : 'admissions');
 
     const buffer = Buffer.from(await file.arrayBuffer());
     
-    // Generate secure randomized filename
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const filename = `${uniqueSuffix}.${ext}`;
+    // Construct structured path:
+    // e.g. "STU-WK01-4892/photo_1726549200.jpg" or fallback "1726549200-847291823.jpg"
+    const timestamp = Date.now();
+    const filename = safeStudentId
+      ? `${safeStudentId}/${safeFileType ? `${safeFileType}_` : ''}${timestamp}.${ext}`
+      : `${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
 
     // Ensure bucket exists
     const { data: buckets } = await supabaseServer.storage.listBuckets();
