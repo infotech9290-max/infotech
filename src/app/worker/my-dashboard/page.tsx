@@ -698,11 +698,13 @@ export default function WorkerSPA() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const v = params.get('view') || params.get('tab');
-      if (v === 'admission' || v === 'overview' || v === 'settings' || v === 'home') {
+      if (v === 'admission' || v === 'overview' || v === 'home') {
         setActiveView(v as ActiveView);
+      } else if (v === 'settings' && role !== 'ADMIN') {
+        setActiveView('settings');
       }
     }
-  }, []);
+  }, [role]);
 
   // Fetch real admissions with strict role filtering via secure server API
   const loadAdmissions = useCallback(async (showLoading = false) => {
@@ -732,7 +734,7 @@ export default function WorkerSPA() {
     { id: 'home',      label: 'Home',            icon: Home },
     { id: 'overview',  label: 'Overview',        icon: LayoutDashboard },
     { id: 'admission', label: 'New Admission',   icon: PlusCircle },
-    { id: 'settings',  label: 'Change Password', icon: KeyRound },
+    ...(role !== 'ADMIN' ? [{ id: 'settings' as ActiveView, label: 'Change Password', icon: KeyRound }] : []),
   ];
 
   return (
@@ -899,7 +901,7 @@ export default function WorkerSPA() {
             </div>
           )}
 
-          {activeView === 'settings' && <SettingsView />}
+          {activeView === 'settings' && role !== 'ADMIN' && <SettingsView />}
         </main>
 
         {/* Full Student Profile Modal (Dossier, Marksheets, Fees & Receipts) */}

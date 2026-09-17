@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, Check, Loader2, Building2, Paintbrush, BookOpen, Plus, Trash2, LayoutTemplate, AlertCircle, KeyRound, Lock } from 'lucide-react';
+import { ShieldCheck, Check, Loader2, Building2, Paintbrush, BookOpen, Plus, Trash2, LayoutTemplate, AlertCircle, KeyRound, Lock, GraduationCap, Calendar, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
@@ -203,11 +203,69 @@ export default function SettingsPage() {
   };
 
   const addCourse = () => {
-    setCourses([...courses, { id: Date.now(), name: 'New Course Name', fee: 0, minDownpayment: 0, commissionRate: 0, maxInstallments: 2, inst1: 0, inst2: 0, inst3: 0, inst4: 0, inst1Months: 1, inst2Months: 3, inst3Months: 6, inst4Months: 9 }]);
+    const defaultTotal = 50000;
+    const defaultDown = 10000;
+    const defaultBal = defaultTotal - defaultDown;
+    const emiEach = Math.round(defaultBal / 2);
+    setCourses([
+      ...courses,
+      {
+        id: Date.now(),
+        name: 'New Course Name',
+        fee: defaultTotal,
+        minDownpayment: defaultDown,
+        commissionRate: 5,
+        maxInstallments: 2,
+        inst1: emiEach,
+        inst1Months: 1,
+        inst2: emiEach,
+        inst2Months: 2,
+        inst3: 0,
+        inst3Months: 3,
+        inst4: 0,
+        inst4Months: 4,
+      },
+    ]);
   };
 
-  const updateCourse = (id: number, field: string, value: string | number) => {
-    setCourses(courses.map(c => c.id === id ? { ...c, [field]: value } : c));
+  const updateCourse = (id: number, field: string, value: any) => {
+    setCourses((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, [field]: value } : c))
+    );
+  };
+
+  const autoSplitEMIs = (courseId: number) => {
+    setCourses((prev) =>
+      prev.map((c) => {
+        if (c.id !== courseId) return c;
+        const total = Number(c.fee) || 0;
+        const down = Number(c.minDownpayment) || 0;
+        const bal = Math.max(0, total - down);
+        const num = Math.min(Math.max(Number(c.maxInstallments) || 1, 1), 4);
+        if (num <= 1) {
+          return {
+            ...c,
+            inst1: 0,
+            inst2: 0,
+            inst3: 0,
+            inst4: 0,
+          };
+        }
+        const each = Math.floor(bal / num);
+        const remainder = bal - each * num;
+        return {
+          ...c,
+          inst1: each + remainder,
+          inst1Months: 1,
+          inst2: num >= 2 ? each : 0,
+          inst2Months: 2,
+          inst3: num >= 3 ? each : 0,
+          inst3Months: 3,
+          inst4: num >= 4 ? each : 0,
+          inst4Months: 4,
+        };
+      })
+    );
   };
 
   const deleteCourse = (id: number) => {
@@ -316,89 +374,512 @@ export default function SettingsPage() {
 
       {/* TAB CONTENT: FEES */}
       {activeTab === 'fees' && (
-        <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+          {/* Header Card */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Manage Courses & Fees</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Set the dynamic fee structure and installments that appear in the worker's admission form.</p>
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Manage Courses & Fees</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Industrial Course Fee & EMI Planner. Configure exact Rs and due schedule for each installment.
+                  </p>
+                </div>
+              </div>
             </div>
-            <Button onClick={addCourse} size="sm" className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm text-xs h-9 px-4">
-              <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Course
+            <Button
+              onClick={addCourse}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm text-sm h-11 px-5 cursor-pointer self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4 mr-2" /> Add New Course
             </Button>
           </div>
-          
-          <div className="p-6 overflow-x-auto">
-             <table className="w-full text-left min-w-[1100px]">
-                <thead>
-                  <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500">
-                    <th className="pb-3 font-bold w-48">Course Name</th>
-                    <th className="pb-3 font-bold w-24">Total Fee (₹)</th>
-                    <th className="pb-3 font-bold w-24">Min Down (₹)</th>
-                    <th className="pb-3 font-bold w-16">EMIs</th>
-                    <th className="pb-3 font-bold w-28">1st EMI (₹ & Mths)</th>
-                    <th className="pb-3 font-bold w-28">2nd EMI (₹ & Mths)</th>
-                    <th className="pb-3 font-bold w-28">3rd EMI (₹ & Mths)</th>
-                    <th className="pb-3 font-bold w-28">4th EMI (₹ & Mths)</th>
-                    <th className="pb-3 font-bold w-16 text-center">Comm. %</th>
-                    <th className="pb-3 font-bold text-right w-12">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {courses.map((course) => (
-                    <tr key={course.id} className="group">
-                      <td className="py-3 pr-2">
-                        <Input value={course.name} onChange={(e) => updateCourse(course.id, 'name', e.target.value)} className="h-9 rounded-lg text-xs font-medium border-transparent group-hover:border-slate-200 focus-visible:border-blue-500 bg-slate-50 group-hover:bg-white transition-all shadow-none" />
-                      </td>
-                      <td className="py-3 pr-2">
-                        <Input type="number" value={course.fee} onChange={(e) => updateCourse(course.id, 'fee', Number(e.target.value))} className="h-9 rounded-lg text-xs font-mono border-transparent group-hover:border-slate-200 focus-visible:border-blue-500 bg-slate-50 group-hover:bg-white transition-all shadow-none" />
-                      </td>
-                      <td className="py-3 pr-2">
-                        <Input type="number" value={course.minDownpayment} onChange={(e) => updateCourse(course.id, 'minDownpayment', Number(e.target.value))} className="h-9 rounded-lg text-xs font-mono border-transparent group-hover:border-slate-200 focus-visible:border-blue-500 bg-slate-50 group-hover:bg-white transition-all shadow-none" />
-                      </td>
-                      <td className="py-3 pr-2">
-                        <Input type="number" min="1" max="4" value={course.maxInstallments || 1} onChange={(e) => updateCourse(course.id, 'maxInstallments', Number(e.target.value))} className="h-9 rounded-lg text-xs font-mono border-transparent group-hover:border-slate-200 focus-visible:border-blue-500 bg-slate-50 group-hover:bg-white transition-all shadow-none text-center p-1" />
-                      </td>
-                      <td className="py-3 pr-2">
-                        <div className="flex flex-col gap-1">
-                          <Input type="number" placeholder="Amt" value={course.inst1 || 0} onChange={(e) => updateCourse(course.id, 'inst1', Number(e.target.value))} disabled={(course.maxInstallments || 1) < 1} className="h-7 rounded text-[11px] font-mono border-slate-200 bg-white disabled:opacity-30 shadow-none px-2" />
-                          <Input type="number" placeholder="Months" value={(course as any).inst1Months || 1} onChange={(e) => updateCourse(course.id, 'inst1Months', Number(e.target.value))} disabled={(course.maxInstallments || 1) < 1} className="h-7 rounded text-[11px] font-mono border-slate-200 bg-slate-50 disabled:opacity-30 shadow-none px-2" title="Months after admission" />
+
+          {/* Courses List */}
+          {courses.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200/60 p-12 text-center space-y-4 shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <BookOpen className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">No courses configured yet</h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Click the button below to add your first course with custom fees and EMI plans.
+                </p>
+              </div>
+              <Button onClick={addCourse} className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl">
+                <Plus className="w-4 h-4 mr-1.5" /> Create First Course
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {courses.map((course, idx) => {
+                const fee = Number(course.fee) || 0;
+                const minDown = Number(course.minDownpayment) || 0;
+                const maxInst = Math.min(Math.max(Number(course.maxInstallments) || 1, 1), 4);
+                const balance = Math.max(0, fee - minDown);
+
+                const emi1 = Number(course.inst1) || 0;
+                const emi2 = Number(course.inst2) || 0;
+                const emi3 = Number(course.inst3) || 0;
+                const emi4 = Number(course.inst4) || 0;
+
+                const scheduledEmiTotal =
+                  (maxInst >= 1 ? emi1 : 0) +
+                  (maxInst >= 2 ? emi2 : 0) +
+                  (maxInst >= 3 ? emi3 : 0) +
+                  (maxInst >= 4 ? emi4 : 0);
+                const totalConfigured =
+                  minDown +
+                  (maxInst > 1
+                    ? maxInst === 2
+                      ? emi1 + emi2
+                      : maxInst === 3
+                      ? emi1 + emi2 + emi3
+                      : emi1 + emi2 + emi3 + emi4
+                    : 0);
+                const isBalanced = maxInst === 1 ? true : fee > 0 && totalConfigured === fee;
+                const diff = fee - totalConfigured;
+
+                return (
+                  <div
+                    key={course.id}
+                    className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm hover:border-slate-300 transition-all"
+                  >
+                    {/* Course Card Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+                          #{idx + 1}
                         </div>
-                      </td>
-                      <td className="py-3 pr-2">
-                        <div className="flex flex-col gap-1">
-                          <Input type="number" placeholder="Amt" value={course.inst2 || 0} onChange={(e) => updateCourse(course.id, 'inst2', Number(e.target.value))} disabled={(course.maxInstallments || 1) < 2} className="h-7 rounded text-[11px] font-mono border-slate-200 bg-white disabled:opacity-30 shadow-none px-2" />
-                          <Input type="number" placeholder="Months" value={(course as any).inst2Months || 2} onChange={(e) => updateCourse(course.id, 'inst2Months', Number(e.target.value))} disabled={(course.maxInstallments || 1) < 2} className="h-7 rounded text-[11px] font-mono border-slate-200 bg-slate-50 disabled:opacity-30 shadow-none px-2" title="Months after admission" />
+                        <div className="flex-1 max-w-lg">
+                          <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                            Course Name
+                          </Label>
+                          <Input
+                            value={course.name}
+                            onChange={(e) => updateCourse(course.id, 'name', e.target.value)}
+                            placeholder="e.g. BCA, MCA, Full Stack Web Development"
+                            className="h-11 text-base font-bold text-slate-900 border-slate-200 rounded-xl bg-slate-50/50 focus:bg-white focus-visible:ring-blue-500"
+                          />
                         </div>
-                      </td>
-                      <td className="py-3 pr-2">
-                        <div className="flex flex-col gap-1">
-                          <Input type="number" placeholder="Amt" value={course.inst3 || 0} onChange={(e) => updateCourse(course.id, 'inst3', Number(e.target.value))} disabled={(course.maxInstallments || 1) < 3} className="h-7 rounded text-[11px] font-mono border-slate-200 bg-white disabled:opacity-30 shadow-none px-2" />
-                          <Input type="number" placeholder="Months" value={(course as any).inst3Months || 3} onChange={(e) => updateCourse(course.id, 'inst3Months', Number(e.target.value))} disabled={(course.maxInstallments || 1) < 3} className="h-7 rounded text-[11px] font-mono border-slate-200 bg-slate-50 disabled:opacity-30 shadow-none px-2" title="Months after admission" />
-                        </div>
-                      </td>
-                      <td className="py-3 pr-2">
-                        <div className="flex flex-col gap-1">
-                          <Input type="number" placeholder="Amt" value={course.inst4 || 0} onChange={(e) => updateCourse(course.id, 'inst4', Number(e.target.value))} disabled={(course.maxInstallments || 1) < 4} className="h-7 rounded text-[11px] font-mono border-slate-200 bg-white disabled:opacity-30 shadow-none px-2" />
-                          <Input type="number" placeholder="Months" value={(course as any).inst4Months || 4} onChange={(e) => updateCourse(course.id, 'inst4Months', Number(e.target.value))} disabled={(course.maxInstallments || 1) < 4} className="h-7 rounded text-[11px] font-mono border-slate-200 bg-slate-50 disabled:opacity-30 shadow-none px-2" title="Months after admission" />
-                        </div>
-                      </td>
-                      <td className="py-3 pr-2 text-center">
-                        <Input type="number" value={course.commissionRate} onChange={(e) => updateCourse(course.id, 'commissionRate', Number(e.target.value))} className="h-9 rounded-lg text-xs font-mono border-transparent group-hover:border-slate-200 focus-visible:border-blue-500 bg-slate-50 group-hover:bg-white transition-all shadow-none text-center p-1" />
-                      </td>
-                      <td className="py-3 text-right">
-                        <Button variant="ghost" size="icon" onClick={() => deleteCourse(course.id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
-                          <Trash2 className="w-4 h-4" />
+                      </div>
+
+                      <div className="flex items-center gap-2.5 self-end sm:self-auto">
+                        <span className="text-xs font-bold px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                          {maxInst === 1 ? '1-Time Full Payment' : `${maxInst} Installments Plan`}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteCourse(course.id)}
+                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl h-10 px-3 transition-colors cursor-pointer"
+                          title="Delete course"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1.5" /> Remove
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-             </table>
-             <div className="pt-6 flex justify-end">
-               <Button onClick={() => handleSave()} disabled={isSaving} className="px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-xl shadow-md transition-all cursor-pointer">
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Fee Structure
-               </Button>
-             </div>
+                      </div>
+                    </div>
+
+                    {/* Pricing Inputs (3 Columns) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Total Fee */}
+                      <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                          Total Course Fee (₹)
+                        </Label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                            ₹
+                          </span>
+                          <Input
+                            type="number"
+                            value={course.fee === 0 ? '0' : course.fee || ''}
+                            onChange={(e) =>
+                              updateCourse(
+                                course.id,
+                                'fee',
+                                e.target.value === '' ? 0 : Number(e.target.value)
+                              )
+                            }
+                            placeholder="50000"
+                            className="pl-8 h-12 font-mono text-base font-bold text-slate-900 rounded-xl bg-white border-slate-200"
+                          />
+                        </div>
+                        <p className="text-[11px] text-slate-400">Total payable tuition fee</p>
+                      </div>
+
+                      {/* Minimum Down Payment */}
+                      <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                          Min. Down Payment (₹)
+                        </Label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                            ₹
+                          </span>
+                          <Input
+                            type="number"
+                            value={course.minDownpayment === 0 ? '0' : course.minDownpayment || ''}
+                            onChange={(e) =>
+                              updateCourse(
+                                course.id,
+                                'minDownpayment',
+                                e.target.value === '' ? 0 : Number(e.target.value)
+                              )
+                            }
+                            placeholder="10000"
+                            className="pl-8 h-12 font-mono text-base font-bold text-slate-900 rounded-xl bg-white border-slate-200"
+                          />
+                        </div>
+                        <p className="text-[11px] text-slate-400">Required token amount at registration</p>
+                      </div>
+
+                      {/* Counselor Commission % */}
+                      <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                          Counselor Incentive (%)
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            value={course.commissionRate === 0 ? '0' : course.commissionRate || ''}
+                            onChange={(e) =>
+                              updateCourse(
+                                course.id,
+                                'commissionRate',
+                                e.target.value === '' ? 0 : Number(e.target.value)
+                              )
+                            }
+                            placeholder="5"
+                            className="h-12 font-mono text-base font-bold text-slate-900 rounded-xl bg-white border-slate-200 pr-8"
+                          />
+                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                            %
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">Commission given to counselor per admission</p>
+                      </div>
+                    </div>
+
+                    {/* EMI / Installments Section */}
+                    <div className="bg-gradient-to-br from-slate-50 to-blue-50/20 p-5 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-blue-600" />
+                            Installments & EMI Plan (Konsa EMI par kitna Rs lena hai)
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Remaining Balance after Min. Down Payment: <strong className="text-blue-700 font-mono">₹{balance.toLocaleString('en-IN')}</strong>
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {/* Max Installments Select */}
+                          <select
+                            value={maxInst}
+                            onChange={(e) => {
+                              const newCount = Number(e.target.value);
+                              updateCourse(course.id, 'maxInstallments', newCount);
+                            }}
+                            className="h-10 px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 cursor-pointer shadow-2xs"
+                          >
+                            <option value={1}>1 Full Payment (No EMI)</option>
+                            <option value={2}>Up to 2 Installments</option>
+                            <option value={3}>Up to 3 Installments</option>
+                            <option value={4}>Up to 4 Installments</option>
+                          </select>
+
+                          {maxInst > 1 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => autoSplitEMIs(course.id)}
+                              className="h-10 px-3.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl cursor-pointer transition-all shadow-sm"
+                              title="Auto-calculate equal split for remaining balance"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Auto Equal Split
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Individual EMI Cards */}
+                      {maxInst > 1 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+                          {/* EMI 1 */}
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-900">1st EMI</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                Month {(course as any).inst1Months || 1}
+                              </span>
+                            </div>
+                            <div>
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                                Rupees to Take (₹)
+                              </Label>
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                                  ₹
+                                </span>
+                                <Input
+                                  type="number"
+                                  value={course.inst1 === 0 ? '0' : course.inst1 || ''}
+                                  onChange={(e) =>
+                                    updateCourse(
+                                      course.id,
+                                      'inst1',
+                                      e.target.value === '' ? 0 : Number(e.target.value)
+                                    )
+                                  }
+                                  placeholder="Amount"
+                                  className="pl-6 h-10 text-xs font-mono font-bold bg-slate-50 border-slate-200"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                                Due Timing
+                              </Label>
+                              <select
+                                value={(course as any).inst1Months || 1}
+                                onChange={(e) =>
+                                  updateCourse(course.id, 'inst1Months', Number(e.target.value))
+                                }
+                                className="w-full h-9 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50 px-2.5"
+                              >
+                                <option value={1}>After 1 Month (30 Days)</option>
+                                <option value={2}>After 2 Months (60 Days)</option>
+                                <option value={3}>After 3 Months (90 Days)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* EMI 2 */}
+                          {maxInst >= 2 && (
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-900">2nd EMI</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                  Month {(course as any).inst2Months || 2}
+                                </span>
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                                  Rupees to Take (₹)
+                                </Label>
+                                <div className="relative">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                                    ₹
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    value={course.inst2 === 0 ? '0' : course.inst2 || ''}
+                                    onChange={(e) =>
+                                      updateCourse(
+                                        course.id,
+                                        'inst2',
+                                        e.target.value === '' ? 0 : Number(e.target.value)
+                                      )
+                                    }
+                                    placeholder="Amount"
+                                    className="pl-6 h-10 text-xs font-mono font-bold bg-slate-50 border-slate-200"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                                  Due Timing
+                                </Label>
+                                <select
+                                  value={(course as any).inst2Months || 2}
+                                  onChange={(e) =>
+                                    updateCourse(course.id, 'inst2Months', Number(e.target.value))
+                                  }
+                                  className="w-full h-9 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50 px-2.5"
+                                >
+                                  <option value={2}>After 2 Months (60 Days)</option>
+                                  <option value={3}>After 3 Months (90 Days)</option>
+                                  <option value={4}>After 4 Months (120 Days)</option>
+                                  <option value={6}>After 6 Months (180 Days)</option>
+                                </select>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* EMI 3 */}
+                          {maxInst >= 3 && (
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-900">3rd EMI</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                  Month {(course as any).inst3Months || 3}
+                                </span>
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                                  Rupees to Take (₹)
+                                </Label>
+                                <div className="relative">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                                    ₹
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    value={course.inst3 === 0 ? '0' : course.inst3 || ''}
+                                    onChange={(e) =>
+                                      updateCourse(
+                                        course.id,
+                                        'inst3',
+                                        e.target.value === '' ? 0 : Number(e.target.value)
+                                      )
+                                    }
+                                    placeholder="Amount"
+                                    className="pl-6 h-10 text-xs font-mono font-bold bg-slate-50 border-slate-200"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                                  Due Timing
+                                </Label>
+                                <select
+                                  value={(course as any).inst3Months || 3}
+                                  onChange={(e) =>
+                                    updateCourse(course.id, 'inst3Months', Number(e.target.value))
+                                  }
+                                  className="w-full h-9 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50 px-2.5"
+                                >
+                                  <option value={3}>After 3 Months (90 Days)</option>
+                                  <option value={4}>After 4 Months (120 Days)</option>
+                                  <option value={6}>After 6 Months (180 Days)</option>
+                                  <option value={9}>After 9 Months (270 Days)</option>
+                                </select>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* EMI 4 */}
+                          {maxInst >= 4 && (
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-900">4th EMI</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                  Month {(course as any).inst4Months || 4}
+                                </span>
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                                  Rupees to Take (₹)
+                                </Label>
+                                <div className="relative">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                                    ₹
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    value={course.inst4 === 0 ? '0' : course.inst4 || ''}
+                                    onChange={(e) =>
+                                      updateCourse(
+                                        course.id,
+                                        'inst4',
+                                        e.target.value === '' ? 0 : Number(e.target.value)
+                                      )
+                                    }
+                                    placeholder="Amount"
+                                    className="pl-6 h-10 text-xs font-mono font-bold bg-slate-50 border-slate-200"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                                  Due Timing
+                                </Label>
+                                <select
+                                  value={(course as any).inst4Months || 4}
+                                  onChange={(e) =>
+                                    updateCourse(course.id, 'inst4Months', Number(e.target.value))
+                                  }
+                                  className="w-full h-9 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50 px-2.5"
+                                >
+                                  <option value={4}>After 4 Months (120 Days)</option>
+                                  <option value={6}>After 6 Months (180 Days)</option>
+                                  <option value={9}>After 9 Months (270 Days)</option>
+                                  <option value={12}>After 12 Months (1 Year)</option>
+                                </select>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-xl bg-white border border-slate-200 text-center text-xs text-slate-500 font-medium">
+                          1 Full Payment active. No installments are scheduled for this course.
+                        </div>
+                      )}
+
+                      {/* Balance Verification Strip */}
+                      {maxInst > 1 && fee > 0 && (
+                        <div
+                          className={`p-3.5 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                            isBalanced
+                              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                              : 'bg-amber-50 border border-amber-200 text-amber-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isBalanced ? (
+                              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                            )}
+                            <span>
+                              {isBalanced ? (
+                                <>
+                                  Fee Breakdown Balanced: <strong>Downpayment (₹{minDown.toLocaleString('en-IN')})</strong> +{' '}
+                                  <strong>EMIs Total (₹{scheduledEmiTotal.toLocaleString('en-IN')})</strong> ={' '}
+                                  <strong>Total Fee (₹{fee.toLocaleString('en-IN')})</strong>
+                                </>
+                              ) : (
+                                <>
+                                  Balance discrepancy: Downpayment + EMIs is{' '}
+                                  <strong>₹{totalConfigured.toLocaleString('en-IN')}</strong> vs Total Fee{' '}
+                                  <strong>₹{fee.toLocaleString('en-IN')}</strong> (Diff: ₹{Math.abs(diff).toLocaleString('en-IN')})
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          {!isBalanced && (
+                            <button
+                              type="button"
+                              onClick={() => autoSplitEMIs(course.id)}
+                              className="font-bold underline text-amber-900 hover:text-amber-950 cursor-pointer whitespace-nowrap text-xs"
+                            >
+                              Auto-Balance EMIs →
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Sticky Save Bar */}
+          <div className="pt-2 flex justify-end">
+            <Button
+              onClick={() => handleSave()}
+              disabled={isSaving}
+              className="px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-xl shadow-md transition-all cursor-pointer text-sm"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Fee Structure
+            </Button>
           </div>
         </div>
       )}
