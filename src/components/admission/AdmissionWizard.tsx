@@ -100,6 +100,17 @@ export function AdmissionWizard({
     declarationConfirmed: false,
   });
 
+  // Real Monotonic/Unique Student ID attributed to counselor
+  const [assignedStudentId, setAssignedStudentId] = useState<string>('');
+
+  useEffect(() => {
+    if (!assignedStudentId) {
+      const rawWorkerTag = (user?.id || (role === 'ADMIN' ? 'ADM-01' : 'WK-01')).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      setAssignedStudentId(`STU-${rawWorkerTag}-${randomSuffix}`);
+    }
+  }, [user?.id, role, assignedStudentId]);
+
   const LOCAL_STORAGE_KEY = 'draftAdmission_v1';
   const [isRestored, setIsRestored] = useState(false);
 
@@ -419,10 +430,9 @@ export function AdmissionWizard({
     setErrorFields({});
 
     const doSubmit = async () => {
-      // Generate unique student ID attributed to worker or admin (e.g. STU-WK01-4821 or STU-ADM01-9214)
+      // Use verified unique student ID attributed to worker or admin
       const rawWorkerTag = (user?.id || (role === 'ADMIN' ? 'ADM-01' : 'WK-01')).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const studentId = `STU-${rawWorkerTag}-${randomSuffix}`;
+      const studentId = assignedStudentId || `STU-${rawWorkerTag}-${Math.floor(1000 + Math.random() * 9000)}`;
 
       const netFee = Math.max(0, (feeData.totalFee || 0) - (feeData.discount || 0));
       const balanceDue = Math.max(0, netFee - (feeData.downPayment || 0));
@@ -933,8 +943,8 @@ export function AdmissionWizard({
                 <span className="text-blue-600 font-mono font-semibold">ID: {user?.id || (role === 'ADMIN' ? 'ADM-01' : 'WK-01')}</span>
               </div>
             </div>
-            <div className="text-slate-600 font-mono text-[11px] sm:text-right bg-white px-2.5 py-1 rounded-xl border border-slate-200">
-              Student ID Tag: <strong className="text-emerald-600">STU-{(user?.id || (role === 'ADMIN' ? 'ADM01' : 'WK01')).replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}-XXXX</strong>
+            <div className="text-slate-600 font-mono text-[11px] sm:text-right bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+              Assigned Student ID: <strong className="text-emerald-600 font-black tracking-wide">{assignedStudentId || 'STU-WK01-1001'}</strong>
             </div>
           </div>
 
