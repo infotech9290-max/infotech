@@ -1,9 +1,9 @@
-import { Metadata } from 'next';
+﻿import { Metadata } from 'next';
+import { supabaseServer } from '@/utils/supabaseServer';
 
 export async function generateMetadata(): Promise<Metadata> {
   let websiteName = 'SATYAM';
   try {
-    const { supabaseServer } = await import('@/utils/supabaseServer');
     const { data } = await supabaseServer
       .from('settings')
       .select('setting_value')
@@ -19,6 +19,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `Login | ${websiteName} Admin Portal`,
     description: 'Secure login for institute admission management staff.',
-    robots: { index: false, follow: false },
+    robots: { index: false, follow: false }
   };
+}
+
+export default function LoginLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
