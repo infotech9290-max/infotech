@@ -365,7 +365,7 @@ export default function LoginPage() {
   };
 
   const fillAdminCredentials = () => {
-    setEmail('info@admin.com');
+    setEmail('infotech9290@gmail.com');
     setPassword('admin');
     setErrorMsg(null);
   };
@@ -500,7 +500,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <Input
                     type="email"
-                    placeholder="e.g. info@admin.com"
+                    placeholder="e.g. infotech9290@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="h-12 bg-slate-950/70 border-slate-700/80 text-white pl-10 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-transparent rounded-xl text-sm transition-all"

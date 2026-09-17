@@ -30,11 +30,11 @@ export async function POST(req: NextRequest) {
 
     // Fallback if users table is uninitialized or user not in Supabase yet
     if (!user) {
-      if (cleanEmail === 'info@admin.com') {
+      if (cleanEmail === 'infotech9290@gmail.com') {
         user = {
           id: 'ADM-01',
           name: 'Super Admin',
-          email: 'info@admin.com',
+          email: 'infotech9290@gmail.com',
           role: 'ADMIN',
           passwordHash: crypto.createHash('sha256').update('admin').digest('hex'),
         };

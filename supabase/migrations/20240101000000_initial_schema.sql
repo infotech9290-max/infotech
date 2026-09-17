@@ -115,12 +115,12 @@ CREATE TABLE IF NOT EXISTS public.users (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Seed default Super Admin (Email: info@admin.com | Password: admin)
+-- Seed default Super Admin (Email: infotech9290@gmail.com | Password: admin)
 INSERT INTO public.users (id, name, email, role, "passwordHash")
 VALUES (
   'ADM-01',
   'Super Admin',
-  'info@admin.com',
+  'infotech9290@gmail.com',
   'ADMIN',
   '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918'
 )

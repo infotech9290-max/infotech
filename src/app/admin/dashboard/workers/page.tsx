@@ -80,13 +80,13 @@ export default function WorkersPage() {
       });
 
       // Boss Card (Fixed Top) — always real data from DB
-      const bossStats = statsMap['info@admin.com'] || { total: 0, success: 0 };
+      const bossStats = statsMap['infotech9290@gmail.com'] || { total: 0, success: 0 };
       const bossRate = bossStats.total > 0 ? Math.round((bossStats.success / bossStats.total) * 100) : 0;
       
       const bossCard: WorkerCard = {
         id: 'ADM-01',
         name: 'Super Admin (Director & Counselor)',
-        email: 'info@admin.com',
+        email: 'infotech9290@gmail.com',
         status: 'ACTIVE',
         isBoss: true,
         admissions: bossStats.total,

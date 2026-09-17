@@ -64,7 +64,7 @@ async function tryInsertAdmin() {
     body: JSON.stringify({
       id: 'ADM-01',
       name: 'Super Admin',
-      email: 'info@admin.com',
+      email: 'infotech9290@gmail.com',
       role: 'ADMIN',
       passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918'
     })
@@ -90,7 +90,7 @@ async function main() {
   if (status === 'connected') {
     await tryInsertAdmin();
     console.log('\n🎉 READY! Go to localhost:3000/login');
-    console.log('   Email: info@admin.com | Password: admin');
+    console.log('   Email: infotech9290@gmail.com | Password: admin');
     return;
   }
 

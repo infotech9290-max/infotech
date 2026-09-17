@@ -41,11 +41,11 @@ export default function WorkerDrilldownPage() {
       setIsLoading(true);
       try {
         // 1. Fetch real worker info from DB
-        if (workerId === 'ADM-01' || workerId === 'info@admin.com') {
+        if (workerId === 'ADM-01' || workerId === 'infotech9290@gmail.com') {
           setWorker({
             id: 'ADM-01',
             name: 'Super Admin (Director & Counselor)',
-            email: 'info@admin.com',
+            email: 'infotech9290@gmail.com',
             status: 'ACTIVE',
           });
         } else {

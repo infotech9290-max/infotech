@@ -129,7 +129,7 @@ export default function SetupPage() {
               className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all"
             >
               <ShieldCheck className="w-4 h-4" />
-              Go to Login → Email: info@admin.com / Password: admin
+              Go to Login → Email: infotech9290@gmail.com / Password: admin
             </a>
           )}
         </form>

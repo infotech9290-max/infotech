@@ -190,8 +190,8 @@ CREATE POLICY "allow_server_users" ON public.users FOR ALL USING (true) WITH CHE
 
 -- Default Admin (password: admin)
 INSERT INTO public.users (id, name, email, role, "passwordHash")
-VALUES ('ADM-01', 'Super Admin', 'info@admin.com', 'ADMIN', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918')
-ON CONFLICT (email) DO NOTHING;
+VALUES ('ADM-01', 'Super Admin', 'infotech9290@gmail.com', 'ADMIN', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918')
+ON CONFLICT (id) DO UPDATE SET email = 'infotech9290@gmail.com';
 
 -- Enable Realtime
 DO $$
