@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, Check, Loader2, Building2, Paintbrush, BookOpen, Plus, Trash2, LayoutTemplate } from 'lucide-react';
+import { ShieldCheck, Check, Loader2, Building2, Paintbrush, BookOpen, Plus, Trash2, LayoutTemplate, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
@@ -48,6 +48,9 @@ export default function SettingsPage() {
             if (json.data.brand.logoUrl !== undefined) setLogoUrl(json.data.brand.logoUrl);
           }
         }
+        if (json.warning) {
+          setDbWarning(json.warning);
+        }
       } catch (err) {
         console.error('Failed to fetch payment settings from API', err);
       }
@@ -56,7 +59,9 @@ export default function SettingsPage() {
   }, []);
 
   const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'success' | 'warning' | 'error' | null>(null);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [dbWarning, setDbWarning] = useState('');
 
   // Database Setup State
   const [dbPat, setDbPat] = useState('');
@@ -78,6 +83,7 @@ export default function SettingsPage() {
       if (res.ok && data.success) {
         setDbStatus('success');
         setDbMsg('✅ Database initialized successfully! All tables created.');
+        setDbWarning('');
       } else {
         setDbStatus('error');
         setDbMsg(data.error || 'Setup failed. Check your PAT token.');
@@ -92,6 +98,7 @@ export default function SettingsPage() {
     if (e) e.preventDefault();
     setIsSaving(true);
     setSaveStatus(null);
+    setSaveMessage('');
     
     try {
       const payload: any = {};
@@ -114,9 +121,10 @@ export default function SettingsPage() {
         body: JSON.stringify(payload)
       });
 
+      const resJson = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Server error: ${res.status}`);
+        throw new Error(resJson.error || `Server error: ${res.status}`);
       }
 
       // Update brand in header immediately
@@ -124,13 +132,24 @@ export default function SettingsPage() {
         window.dispatchEvent(new CustomEvent('brand-update', { detail: websiteName }));
       }
 
-      setSaveStatus('success');
+      if (resJson.warning) {
+        setSaveStatus('warning');
+        setSaveMessage(resJson.warning);
+      } else {
+        setSaveStatus('success');
+        setSaveMessage('Changes Saved');
+      }
     } catch (err) {
       console.error('Failed to save settings:', err);
+      const errMsg = err instanceof Error ? err.message : 'Failed to save settings';
       setSaveStatus('error');
+      setSaveMessage(errMsg);
     } finally {
       setIsSaving(false);
-      setTimeout(() => setSaveStatus(null), 4000);
+      setTimeout(() => {
+        setSaveStatus(null);
+        setSaveMessage('');
+      }, 5000);
     }
   };
 
@@ -159,11 +178,38 @@ export default function SettingsPage() {
           <p className="text-sm text-slate-500 mt-1">Manage global platform settings, brand identity, and fee structures.</p>
         </div>
         {saveStatus === 'success' && (
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold animate-in fade-in">
-            <Check className="w-4 h-4 text-emerald-600" /> Changes Saved
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold animate-in fade-in shadow-sm">
+            <Check className="w-4 h-4 text-emerald-600 shrink-0" /> {saveMessage || 'Changes Saved'}
+          </div>
+        )}
+        {saveStatus === 'warning' && (
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold animate-in fade-in shadow-sm max-w-md">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" /> <span className="truncate">{saveMessage || 'Saved locally'}</span>
+          </div>
+        )}
+        {saveStatus === 'error' && (
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-800 border border-red-200 text-xs font-bold animate-in fade-in shadow-sm max-w-md">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" /> <span className="truncate">{saveMessage || 'Save failed'}</span>
           </div>
         )}
       </div>
+
+      {/* DB NOTICE BANNER */}
+      {dbWarning && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs shadow-sm">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Supabase database tables not initialized yet. Settings are active & saved locally. For cloud multi-device sync, initialize your database.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('database')}
+            className="font-bold text-amber-700 hover:text-amber-900 underline whitespace-nowrap text-xs cursor-pointer"
+          >
+            Go to DB Setup →
+          </button>
+        </div>
+      )}
 
       {/* TABS */}
       <div className="flex space-x-1 border-b border-slate-200">
