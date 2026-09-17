@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { supabaseServer } from '@/utils/supabaseServer';
-import { SCHEMA_SQL } from '@/app/api/setup/route';
+import { SCHEMA_SQL } from '@/utils/schemaSql';
 
 export const dynamic = 'force-dynamic';
 
