@@ -32,10 +32,14 @@ interface AdmissionRecord {
   status: string;
   created_at: string;
   balance_due: number;
+  total_fee?: number;
+  paid_amount?: number;
   payment_method?: string;
   payment_utr?: string;
   worker_name?: string;
   tenth_marks?: string;
+  phone?: string;
+  email?: string;
 }
 
 const normalizeStatus = (s: string): StatusKey => {
@@ -246,38 +250,64 @@ function OverviewView({
   const filteredAdmissions = useMemo(() => {
     return admissions.filter((a) => {
       const matchesFilter = activeFilter === 'All' || normalizeStatus(a.status) === activeFilter;
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.trim().toLowerCase();
       const matchesSearch =
-        !searchQuery ||
+        !q ||
         a.student_name?.toLowerCase().includes(q) ||
         a.unique_id?.toLowerCase().includes(q) ||
-        a.graduation_course?.toLowerCase().includes(q);
+        a.graduation_course?.toLowerCase().includes(q) ||
+        a.phone?.toLowerCase().includes(q) ||
+        a.payment_utr?.toLowerCase().includes(q);
       return matchesFilter && matchesSearch;
     });
   }, [admissions, activeFilter, searchQuery]);
 
   const exportCSV = () => {
     if (filteredAdmissions.length === 0) return;
-    const headers = ['Unique ID', 'Student Name', 'Course', 'Status', '10th Marks', 'Payment Mode', 'UTR', 'Balance Due', 'Submission Date'];
+    const headers = [
+      'Unique ID',
+      'Student Name',
+      'Phone',
+      'Course',
+      'Status',
+      '10th Marks',
+      'Total Fee',
+      'Paid Amount',
+      'Balance Due',
+      'Payment Mode',
+      'UTR',
+      'Submission Date',
+    ];
+    const escapeCsv = (val: unknown) => {
+      const s = val === null || val === undefined ? '' : String(val);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
     const rows = filteredAdmissions.map((r) => [
-      `"${r.unique_id || ''}"`,
-      `"${r.student_name || ''}"`,
-      `"${r.graduation_course || ''}"`,
-      `"${normalizeStatus(r.status)}"`,
-      `"${r.tenth_marks || ''}"`,
-      `"${r.payment_method }"`,
-      `"${r.payment_utr || ''}"`,
-      `"${r.balance_due || 0}"`,
-      `"${new Date(r.created_at).toLocaleDateString('en-GB')}"`,
+      escapeCsv(r.unique_id || ''),
+      escapeCsv(r.student_name || ''),
+      escapeCsv(r.phone || ''),
+      escapeCsv(r.graduation_course || ''),
+      escapeCsv(normalizeStatus(r.status)),
+      escapeCsv(r.tenth_marks || ''),
+      escapeCsv(r.total_fee || 0),
+      escapeCsv(r.paid_amount || 0),
+      escapeCsv(r.balance_due || 0),
+      escapeCsv(r.payment_method || 'Official Account'),
+      escapeCsv(r.payment_utr || ''),
+      escapeCsv(r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB') : ''),
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+
+    const csvContent = '\uFEFF' + [headers.map(escapeCsv).join(','), ...rows.map((e) => e.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.href = url;
     link.setAttribute('download', `my_admissions_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
