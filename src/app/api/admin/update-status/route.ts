@@ -74,26 +74,56 @@ export async function POST(req: NextRequest) {
       updatePayload.father_name = fatherName.trim();
     }
 
-    const { data: updatedRecord, error: updateErr } = await supabaseServer
-      .from('admissions')
-      .update(updatePayload)
-      .eq('unique_id', uniqueId.trim())
-      .select()
-      .single();
+    // Attempt Atomic RPC when settling balance to zero and marking Enrolled
+    let updatedRecord: any = null;
+    let usedRpc = false;
 
-    if (updateErr) throw updateErr;
+    const isSettlingBalance = balanceDue !== undefined && Number(balanceDue) === 0 && (status === 'Enrolled' || statusDisplay === 'Enrolled');
 
-    const clientIp = req.headers.get('x-forwarded-for') || '127.0.0.1';
-    const userAgent = req.headers.get('user-agent') || 'Unknown Device';
-    const auditAction = statusDisplay
-      ? `Verified Admin Status Change: #${uniqueId} updated to "${statusDisplay}"`
-      : `Verified Admin Record Update: #${uniqueId}`;
+    if (isSettlingBalance) {
+      try {
+        const { data: rpcData, error: rpcErr } = await supabaseServer.rpc('settle_student_balance', {
+          p_identifier: uniqueId.trim(),
+          p_utr: 'CASH-SETTLED',
+          p_payment_mode: 'Admin Settlement',
+        });
+        if (!rpcErr && rpcData && (rpcData as any).success) {
+          usedRpc = true;
+          const { data: rpcRecord } = await supabaseServer
+            .from('admissions')
+            .select()
+            .eq('unique_id', uniqueId.trim())
+            .maybeSingle();
+          updatedRecord = rpcRecord;
+        }
+      } catch {
+        // Graceful fallback to table update below
+      }
+    }
 
-    await supabaseServer.from('audit_logs').insert([{
-      action: auditAction,
-      device_info: userAgent.slice(0, 150),
-      ip_address: clientIp.split(',')[0].trim(),
-    }]);
+    if (!usedRpc) {
+      const { data: directRecord, error: updateErr } = await supabaseServer
+        .from('admissions')
+        .update(updatePayload)
+        .eq('unique_id', uniqueId.trim())
+        .select()
+        .single();
+
+      if (updateErr) throw updateErr;
+      updatedRecord = directRecord;
+
+      const clientIp = req.headers.get('x-forwarded-for') || '127.0.0.1';
+      const userAgent = req.headers.get('user-agent') || 'Unknown Device';
+      const auditAction = statusDisplay
+        ? `Verified Admin Status Change: #${uniqueId} updated to "${statusDisplay}"`
+        : `Verified Admin Record Update: #${uniqueId}`;
+
+      await supabaseServer.from('audit_logs').insert([{
+        action: auditAction,
+        device_info: userAgent.slice(0, 150),
+        ip_address: clientIp.split(',')[0].trim(),
+      }]);
+    }
 
     return NextResponse.json({
       success: true,

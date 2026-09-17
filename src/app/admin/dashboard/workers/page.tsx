@@ -23,6 +23,8 @@ interface WorkerCard {
 export default function WorkersPage() {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [designation, setDesignation] = useState('Admissions Counselor');
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [workers, setWorkers] = useState<WorkerCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,7 +116,13 @@ export default function WorkersPage() {
       const res = await fetch('/api/admin/workers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password: securePin })
+        body: JSON.stringify({ 
+          name: name.trim(), 
+          email: email.trim(), 
+          password: securePin,
+          phone: phone.trim(),
+          designation: designation.trim() || 'Admissions Counselor'
+        })
       });
 
       const data = await res.json();
@@ -126,7 +134,7 @@ export default function WorkersPage() {
 
       setWorkers((prev) => (prev.length > 0 ? [prev[0], data.worker, ...prev.slice(1)] : [data.worker]));
       setInvitedPin(securePin); // Show PIN in UI for admin to share
-    } catch (err) {
+    } catch {
       alert('Error creating worker');
     }
   };
@@ -136,6 +144,8 @@ export default function WorkersPage() {
     setInvitedPin(null);
     setName('');
     setEmail('');
+    setPhone('');
+    setDesignation('Admissions Counselor');
   };
 
   const copyPin = () => {
@@ -242,21 +252,21 @@ export default function WorkersPage() {
                 </Button>
               </div>
             ) : (
-              <form className="space-y-5 pt-4" onSubmit={handleInvite}>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Full Name</Label>
+              <form className="space-y-4 pt-4" onSubmit={handleInvite}>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Full Name *</Label>
                   <Input
-                    className="h-12 rounded-xl"
+                    className="h-11 rounded-xl"
                     placeholder="e.g. Vikas Sharma"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Official Email</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Official Email *</Label>
                   <Input
-                    className="h-12 rounded-xl"
+                    className="h-11 rounded-xl"
                     placeholder="worker@yourdomain.com"
                     type="email"
                     value={email}
@@ -264,7 +274,28 @@ export default function WorkersPage() {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full h-12 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all cursor-pointer">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Mobile Phone (Optional)</Label>
+                    <Input
+                      className="h-11 rounded-xl"
+                      placeholder="e.g. 9876543210"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Designation / Role</Label>
+                    <Input
+                      className="h-11 rounded-xl"
+                      placeholder="e.g. Admissions Counselor"
+                      value={designation}
+                      onChange={(e) => setDesignation(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full h-12 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all cursor-pointer mt-2">
                   Generate Invite & PIN
                 </Button>
               </form>

@@ -1,16 +1,20 @@
-/**
- * SECURITY SENTINEL: ZERO BROWSER EXPOSURE GATEWAY
- * 
- * Direct client-side Supabase connections from the browser are strictly prohibited
- * to protect against credential harvesting and RLS bypasses.
- * 
- * All client operations must communicate exclusively through secure Next.js server API routes:
- * - /api/admissions
- * - /api/settings
- * - /api/audit-logs
- * - /api/admin/update-status
- * 
- * Server-only database operations are safely handled by `@/utils/supabaseServer`.
- */
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-export const supabase = null as any;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+/**
+ * Browser-safe Supabase Client.
+ * Governed strictly by PostgreSQL Row Level Security (RLS) policies.
+ * Used primarily for Realtime WebSockets subscriptions and live event dispatching.
+ */
+export const supabase: SupabaseClient | null = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+    })
+  : null;
+

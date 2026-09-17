@@ -658,6 +658,10 @@ export function AdmissionWizard({
         setSubmittedStudent(newStudentRecord);
         setRedirectCountdown(5);
         setIsRedirectPaused(false);
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('admission-created', { detail: newStudentRecord }));
+        }
         localStorage.removeItem(LOCAL_STORAGE_KEY);
         setCurrentStep(4);
         if (onSuccess) onSuccess(newStudentRecord);

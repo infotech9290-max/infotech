@@ -8,6 +8,7 @@ import { StudentProfileModal } from '@/components/profile/StudentProfileModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { mapDbRecordToStudent, DbAdmissionRecord } from '@/utils/studentMapper';
+import { supabase } from '@/utils/supabaseClient';
 
 import WorkersPage from './workers/page';
 import SettingsPage from './settings/page';
@@ -20,6 +21,7 @@ export default function AdminOverview() {
   const [currentTab, setCurrentTab] = useState<AdminTab>('overview');
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRealtimeActive, setIsRealtimeActive] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeStatusFilter, setActiveStatusFilter] = useState<StudentStatus | 'ALL'>('ALL');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -58,8 +60,8 @@ export default function AdminOverview() {
     }
   };
 
-  const fetchStudents = async () => {
-    setIsLoading(true);
+  const fetchStudents = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     setFetchError(null);
     try {
       const res = await fetch('/api/admissions', { cache: 'no-store' });
@@ -81,12 +83,59 @@ export default function AdminOverview() {
       setFetchError('Network error while connecting to admissions server.');
       setStudents([]);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStudents();
+    fetchStudents(true);
+
+    // 1. Cross-component Custom Event Listeners (Instant Local Dispatch)
+    const onAdmissionCreated = () => {
+      fetchStudents(false);
+    };
+    const onAdmissionUpdated = () => {
+      fetchStudents(false);
+    };
+    const onWindowFocus = () => {
+      fetchStudents(false);
+    };
+
+    window.addEventListener('admission-created', onAdmissionCreated);
+    window.addEventListener('admission-updated', onAdmissionUpdated);
+    window.addEventListener('focus', onWindowFocus);
+
+    // 2. Enterprise Supabase Realtime WebSocket Subscription
+    let channel: any = null;
+    if (supabase) {
+      try {
+        channel = supabase
+          .channel('public:admissions')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'admissions' },
+            () => {
+              fetchStudents(false);
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              setIsRealtimeActive(true);
+            }
+          });
+      } catch (err) {
+        console.warn('Realtime channel error:', err);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('admission-created', onAdmissionCreated);
+      window.removeEventListener('admission-updated', onAdmissionUpdated);
+      window.removeEventListener('focus', onWindowFocus);
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
 
   if (isLoading && currentTab === 'overview') {
@@ -134,10 +183,22 @@ export default function AdminOverview() {
             </div>
 
             <div className="flex items-center gap-3">
+              <span 
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${
+                  isRealtimeActive 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs'
+                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                }`}
+                title={isRealtimeActive ? 'Supabase Realtime WebSockets Connected' : 'Local Fast-Sync Connected'}
+              >
+                <span className={`w-2 h-2 rounded-full ${isRealtimeActive ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`} />
+                {isRealtimeActive ? 'Realtime Live' : 'Auto-Sync Active'}
+              </span>
+
               <button
-                onClick={fetchStudents}
+                onClick={() => fetchStudents(true)}
                 disabled={isLoading}
-                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs active:scale-95"
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
               >
                 {isLoading ? 'Syncing...' : '↻ Refresh Data'}
               </button>
@@ -160,7 +221,7 @@ export default function AdminOverview() {
                 <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-between gap-3">
                   <p className="text-sm font-medium">{fetchError}</p>
                   <button
-                    onClick={fetchStudents}
+                    onClick={() => fetchStudents(true)}
                     className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all cursor-pointer shrink-0"
                   >
                     ↻ Retry

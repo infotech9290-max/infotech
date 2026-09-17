@@ -67,6 +67,9 @@ CREATE TABLE IF NOT EXISTS public.admissions (
 );
 
 -- Idempotent column additions for existing installations
+ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS course TEXT DEFAULT 'Standard Course';
+ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS installments JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS payments JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS father_name TEXT DEFAULT 'N/A';
 ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS phone TEXT;
@@ -126,7 +129,74 @@ VALUES (
 )
 ON CONFLICT (email) DO NOTHING;
 
--- 5. PERFORMANCE INDEXES
+-- 5. AUTOMATED STATUS AUDIT TRIGGER
+CREATE OR REPLACE FUNCTION public.audit_admission_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status) THEN
+    INSERT INTO public.audit_logs (action, device_info, ip_address)
+    VALUES (
+      'Admission #' || NEW.unique_id || ' status changed: ' || OLD.status || ' -> ' || NEW.status,
+      'PostgreSQL Database Trigger',
+      '127.0.0.1'
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_audit_admission_status ON public.admissions;
+CREATE TRIGGER trg_audit_admission_status
+AFTER UPDATE ON public.admissions
+FOR EACH ROW EXECUTE FUNCTION public.audit_admission_changes();
+
+-- 6. ATOMIC STORED PROCEDURE (RPC): SETTLE STUDENT BALANCE
+CREATE OR REPLACE FUNCTION public.settle_student_balance(
+  p_identifier TEXT,
+  p_utr TEXT DEFAULT 'MANUAL-SETTLE',
+  p_payment_mode TEXT DEFAULT 'Cash'
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_admission RECORD;
+  v_new_paid NUMERIC;
+BEGIN
+  SELECT * INTO v_admission FROM public.admissions 
+  WHERE unique_id = p_identifier OR id::text = p_identifier
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Student record not found for: ' || p_identifier);
+  END IF;
+
+  v_new_paid := v_admission.total_fee - v_admission.discount;
+
+  UPDATE public.admissions
+  SET 
+    paid_amount = v_new_paid,
+    balance_due = 0,
+    status = 'Enrolled',
+    payment_utr = COALESCE(p_utr, v_admission.payment_utr, 'CASH-SETTLED'),
+    updated_at = timezone('utc'::text, now())
+  WHERE id = v_admission.id;
+
+  INSERT INTO public.audit_logs (action, device_info, ip_address)
+  VALUES (
+    'Balance settled in full for student: ' || v_admission.student_name || ' (#' || v_admission.unique_id || ') via ' || p_payment_mode,
+    'RPC Procedure',
+    '127.0.0.1'
+  );
+
+  RETURN jsonb_build_object(
+    'success', true, 
+    'message', 'Balance settled and student marked Enrolled',
+    'unique_id', v_admission.unique_id,
+    'paid_amount', v_new_paid
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- 7. PERFORMANCE INDEXES
 CREATE INDEX IF NOT EXISTS idx_admissions_unique_id ON public.admissions (unique_id);
 CREATE INDEX IF NOT EXISTS idx_admissions_worker_id ON public.admissions (worker_id);
 CREATE INDEX IF NOT EXISTS idx_admissions_status ON public.admissions (status);
@@ -134,7 +204,7 @@ CREATE INDEX IF NOT EXISTS idx_admissions_created_at ON public.admissions (creat
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
 
--- 6. ROW LEVEL SECURITY (RLS) POLICIES
+-- 8. ROW LEVEL SECURITY (RLS) POLICIES
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
@@ -149,3 +219,19 @@ CREATE POLICY "allow_server_settings" ON public.settings FOR ALL USING (true) WI
 CREATE POLICY "allow_server_admissions" ON public.admissions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_server_audit_logs" ON public.audit_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_server_users" ON public.users FOR ALL USING (true) WITH CHECK (true);
+
+-- 9. ENABLE REALTIME WEBSOCKET PUBLICATIONS
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.admissions;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+END $$;
+

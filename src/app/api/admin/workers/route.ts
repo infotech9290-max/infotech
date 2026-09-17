@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/utils/supabaseServer';
 import crypto from 'crypto';
+import { readLocalWorkers, writeLocalWorkers, LocalWorker } from '@/utils/workerStorage';
 
 // GET: Return all active workers with real admission stats
 export async function GET() {
@@ -10,11 +11,22 @@ export async function GET() {
       supabaseServer.from('admissions').select('worker_email, status'),
     ]);
 
+    let workersList: any[] = [];
+
     if (usersResult.error) {
       if ((usersResult.error as any).code === 'PGRST205') {
-        return NextResponse.json({ success: true, workers: [] });
+        // Fallback to local storage if DB table not yet created
+        workersList = readLocalWorkers();
+      } else {
+        throw usersResult.error;
       }
-      throw usersResult.error;
+    } else {
+      workersList = usersResult.data || [];
+      // If DB has 0 workers, merge local workers
+      if (workersList.length === 0) {
+        const local = readLocalWorkers();
+        if (local.length > 0) workersList = local;
+      }
     }
 
     // Build stats map: worker_email → { total, enrolled }
@@ -28,13 +40,15 @@ export async function GET() {
       }
     });
 
-    const workers = (usersResult.data || []).map((u) => {
+    const workers = workersList.map((u) => {
       const stats = statsMap[(u.email || '').toLowerCase()] || { total: 0, enrolled: 0 };
       const rate = stats.total > 0 ? Math.round((stats.enrolled / stats.total) * 100) : 0;
       return {
         id: u.id,
         name: u.name,
         email: u.email,
+        phone: u.phone || '',
+        designation: u.designation || 'Admissions Counselor',
         status: 'ACTIVE',
         admissions: stats.total,
         successRate: `${rate}%`,
@@ -43,7 +57,7 @@ export async function GET() {
     });
 
     return NextResponse.json({ success: true, workers });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch workers' }, { status: 500 });
   }
 }
@@ -59,55 +73,106 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    const { name, email, password } = await req.json();
+    const { name, email, password, phone, designation } = await req.json();
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'Name, email, and password are required' }, { status: 400 });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+    const cleanPhone = phone ? phone.trim() : '';
+    const cleanDesignation = designation ? designation.trim() : 'Admissions Counselor';
+
     const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
     
     // Generate clean monotonic sequential worker ID (e.g. WK-01, WK-02...)
-    const { data: existingWorkers } = await supabaseServer
-      .from('users')
-      .select('id')
-      .ilike('id', 'WK-%');
-
     let maxIndex = 0;
-    if (existingWorkers && existingWorkers.length > 0) {
-      for (const w of existingWorkers) {
-        const match = w.id.match(/^WK-(\d+)$/i);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxIndex) maxIndex = num;
+    try {
+      const { data: existingWorkers } = await supabaseServer
+        .from('users')
+        .select('id')
+        .ilike('id', 'WK-%');
+
+      if (existingWorkers && existingWorkers.length > 0) {
+        for (const w of existingWorkers) {
+          const match = w.id.match(/^WK-(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxIndex) maxIndex = num;
+          }
         }
       }
+    } catch {
+      // ignore query error
     }
+
+    // Also check local workers for maxIndex
+    const localWorkers = readLocalWorkers();
+    for (const lw of localWorkers) {
+      const match = lw.id.match(/^WK-(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxIndex) maxIndex = num;
+      }
+    }
+
     const newId = `WK-${String(maxIndex + 1).padStart(2, '0')}`;
     
-    const newUser = {
+    const newUser: LocalWorker = {
       id: newId,
-      name,
-      email: email.trim().toLowerCase(),
+      name: cleanName,
+      email: cleanEmail,
       role: 'WORKER',
-      passwordHash
+      passwordHash,
+      phone: cleanPhone,
+      designation: cleanDesignation,
+      created_at: new Date().toISOString(),
+      status: 'ACTIVE',
     };
 
-    const { error } = await supabaseServer
-      .from('users')
-      .insert([newUser]);
+    // 1. Try Supabase Insert
+    let dbSuccess = false;
+    try {
+      const { error } = await supabaseServer
+        .from('users')
+        .insert([{
+          id: newId,
+          name: cleanName,
+          email: cleanEmail,
+          role: 'WORKER',
+          phone: cleanPhone,
+          designation: cleanDesignation,
+          passwordHash,
+        }]);
 
-    if (error) {
-      if (error.code === '23505') { // unique violation
+      if (error) {
+        if (error.code === '23505') { // unique violation
+          return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
+        }
+      } else {
+        dbSuccess = true;
+      }
+    } catch {
+      // If DB uninitialized, proceed to local persistence
+    }
+
+    // 2. Dual persistence to local workers file
+    const existingIndex = localWorkers.findIndex((w) => w.email === cleanEmail);
+    if (existingIndex >= 0) {
+      if (!dbSuccess) {
         return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
       }
-      throw error;
+      localWorkers[existingIndex] = newUser;
+    } else {
+      localWorkers.push(newUser);
     }
+    writeLocalWorkers(localWorkers);
 
     // Record audit log for new worker creation
     try {
       await supabaseServer.from('audit_logs').insert([{
-        action: `Created new counselor account: ${name} (${newId})`,
+        action: `Created new counselor account: ${cleanName} (${newId})`,
         device_info: req.headers.get('user-agent') || 'Admin Dashboard',
         ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
       }]);
@@ -117,15 +182,17 @@ export async function POST(req: NextRequest) {
 
     const safeResponse = {
       id: newId,
-      name,
-      email,
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
+      designation: cleanDesignation,
       status: 'ACTIVE',
       admissions: 0,
       successRate: '0%'
     };
 
     return NextResponse.json({ success: true, worker: safeResponse });
-  } catch (err: any) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create worker' }, { status: 500 });
   }
 }

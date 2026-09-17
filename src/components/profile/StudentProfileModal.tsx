@@ -330,6 +330,9 @@ export function StudentProfileModal({
                         if (onStatusUpdated) {
                           onStatusUpdated({ ...student, status: s });
                         }
+                        if (typeof window !== 'undefined') {
+                          window.dispatchEvent(new CustomEvent('admission-updated', { detail: { id: student.id, status: s } }));
+                        }
                         onOpenChange(false);
                       } catch (err) {
                         console.error('Failed to update student status:', err);
@@ -381,6 +384,9 @@ export function StudentProfileModal({
                           paidAmount: student.fees.netFee,
                         },
                       });
+                    }
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('admission-updated', { detail: { id: student.id, status: 'Enrolled' } }));
                     }
                     onOpenChange(false);
                   } catch (err) {

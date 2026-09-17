@@ -60,6 +60,9 @@ CREATE TABLE IF NOT EXISTS public.admissions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS course TEXT DEFAULT 'Standard Course';
+ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS installments JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS payments JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS father_name TEXT DEFAULT 'N/A';
 ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE public.admissions ADD COLUMN IF NOT EXISTS phone TEXT;
@@ -85,6 +88,73 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   ip_address TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Automated Audit Trigger
+CREATE OR REPLACE FUNCTION public.audit_admission_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status) THEN
+    INSERT INTO public.audit_logs (action, device_info, ip_address)
+    VALUES (
+      'Admission #' || NEW.unique_id || ' status changed: ' || OLD.status || ' -> ' || NEW.status,
+      'PostgreSQL Database Trigger',
+      '127.0.0.1'
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_audit_admission_status ON public.admissions;
+CREATE TRIGGER trg_audit_admission_status
+AFTER UPDATE ON public.admissions
+FOR EACH ROW EXECUTE FUNCTION public.audit_admission_changes();
+
+-- Atomic Stored Procedure: Settle Student Balance
+CREATE OR REPLACE FUNCTION public.settle_student_balance(
+  p_identifier TEXT,
+  p_utr TEXT DEFAULT 'MANUAL-SETTLE',
+  p_payment_mode TEXT DEFAULT 'Cash'
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_admission RECORD;
+  v_new_paid NUMERIC;
+BEGIN
+  SELECT * INTO v_admission FROM public.admissions 
+  WHERE unique_id = p_identifier OR id::text = p_identifier
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Student record not found for: ' || p_identifier);
+  END IF;
+
+  v_new_paid := v_admission.total_fee - v_admission.discount;
+
+  UPDATE public.admissions
+  SET 
+    paid_amount = v_new_paid,
+    balance_due = 0,
+    status = 'Enrolled',
+    payment_utr = COALESCE(p_utr, v_admission.payment_utr, 'CASH-SETTLED'),
+    updated_at = timezone('utc'::text, now())
+  WHERE id = v_admission.id;
+
+  INSERT INTO public.audit_logs (action, device_info, ip_address)
+  VALUES (
+    'Balance settled in full for student: ' || v_admission.student_name || ' (#' || v_admission.unique_id || ') via ' || p_payment_mode,
+    'RPC Procedure',
+    '127.0.0.1'
+  );
+
+  RETURN jsonb_build_object(
+    'success', true, 
+    'message', 'Balance settled and student marked Enrolled',
+    'unique_id', v_admission.unique_id,
+    'paid_amount', v_new_paid
+  );
+END;
+$$ LANGUAGE plpgsql;
 
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_admissions_unique_id ON public.admissions(unique_id);
@@ -122,6 +192,19 @@ CREATE POLICY "allow_server_users" ON public.users FOR ALL USING (true) WITH CHE
 INSERT INTO public.users (id, name, email, role, "passwordHash")
 VALUES ('ADM-01', 'Super Admin', 'info@admin.com', 'ADMIN', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918')
 ON CONFLICT (email) DO NOTHING;
+
+-- Enable Realtime
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.admissions;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+END $$;
 `;
 
 export async function POST(req: NextRequest) {
