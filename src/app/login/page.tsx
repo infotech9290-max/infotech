@@ -284,62 +284,6 @@ export default function LoginPage() {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [portalBrand, setPortalBrand] = useState('ADMISSION PORTAL');
 
-  // Emergency Admin Recovery State
-  const [forgotRole, setForgotRole] = useState<'admin' | 'worker'>('admin');
-  const [recoverEmail, setRecoverEmail] = useState('infotech9290@gmail.com');
-  const [recoverKey, setRecoverKey] = useState('');
-  const [recoverNewPass, setRecoverNewPass] = useState('');
-  const [recoverConfirmPass, setRecoverConfirmPass] = useState('');
-  const [recoverStatus, setRecoverStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [recoverMsg, setRecoverMsg] = useState('');
-
-  const handleAdminRecovery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (recoverNewPass !== recoverConfirmPass) {
-      setRecoverStatus('error');
-      setRecoverMsg('New password and confirmation do not match.');
-      return;
-    }
-    if (recoverNewPass.length < 6) {
-      setRecoverStatus('error');
-      setRecoverMsg('Password must be at least 6 characters long.');
-      return;
-    }
-    setRecoverStatus('loading');
-    setRecoverMsg('');
-    try {
-      const res = await fetch('/api/auth/admin-recovery', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: recoverEmail,
-          recoveryKey: recoverKey,
-          newPassword: recoverNewPass,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setRecoverStatus('success');
-        setRecoverMsg('✅ Super Admin password reset successfully! Redirecting to login...');
-        setTimeout(() => {
-          setIsForgotPassword(false);
-          setPassword(recoverNewPass);
-          setRecoverKey('');
-          setRecoverNewPass('');
-          setRecoverConfirmPass('');
-          setRecoverStatus('idle');
-          setRecoverMsg('');
-        }, 1500);
-      } else {
-        setRecoverStatus('error');
-        setRecoverMsg(data.error || 'Failed to reset password.');
-      }
-    } catch {
-      setRecoverStatus('error');
-      setRecoverMsg('Network error. Please try again.');
-    }
-  };
-
   // 3D Card Interactive Tilt
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -642,136 +586,40 @@ export default function LoginPage() {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              {/* Role Toggle for Recovery */}
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => { setForgotRole('admin'); setRecoverMsg(''); }}
-                  className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    forgotRole === 'admin'
-                      ? 'bg-purple-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Super Admin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setForgotRole('worker'); setRecoverMsg(''); }}
-                  className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    forgotRole === 'worker'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  Counselor Staff
-                </button>
+              <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-700/60 text-center space-y-3">
+                <div className="w-11 h-11 rounded-2xl bg-blue-500/15 text-blue-400 flex items-center justify-center mx-auto border border-blue-500/30">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Institutional Security Protocol</h3>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                    Account credentials follow enterprise cloud compliance standards.
+                  </p>
+                </div>
+
+                <div className="text-left bg-slate-900/90 rounded-xl p-3.5 border border-slate-800 space-y-2.5 text-xs">
+                  <div>
+                    <span className="font-bold text-blue-400 block text-[11px]">👥 Counselor / Staff:</span>
+                    <p className="text-slate-400 text-[11px] mt-0.5">
+                      Contact your Institute Director at <strong className="text-slate-300">infotech9290@gmail.com</strong>. The Director can reset your PIN directly from the Workers Fleet dashboard.
+                    </p>
+                  </div>
+                  <div className="pt-2 border-t border-slate-800">
+                    <span className="font-bold text-purple-400 block text-[11px]">🛡️ Super Administrator:</span>
+                    <p className="text-slate-400 text-[11px] mt-0.5">
+                      Root access is strictly protected. For cloud security compliance, master credentials can only be managed from within the authenticated Admin Settings or directly via the 2FA-secured Supabase Cloud console.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {forgotRole === 'admin' ? (
-                <form onSubmit={handleAdminRecovery} className="space-y-3 pt-1">
-                  <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 text-left">
-                    <p className="text-[11px] font-bold text-purple-400">🛡️ Emergency Super Admin Recovery</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      Reset the master credentials for <strong>infotech9290@gmail.com</strong> using your Master Secret Key.
-                    </p>
-                  </div>
-
-                  <div className="space-y-1 text-left">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Master Recovery Key
-                    </Label>
-                    <Input
-                      type="password"
-                      placeholder="Enter Key (Default: INFOTECH-9290-MASTER)"
-                      value={recoverKey}
-                      onChange={(e) => setRecoverKey(e.target.value)}
-                      required
-                      suppressHydrationWarning
-                      className="h-10 bg-slate-950/70 border-slate-700/80 text-white text-xs font-mono rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1 text-left">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      New Password
-                    </Label>
-                    <Input
-                      type="password"
-                      placeholder="Enter new password (min. 6 chars)"
-                      value={recoverNewPass}
-                      onChange={(e) => setRecoverNewPass(e.target.value)}
-                      required
-                      suppressHydrationWarning
-                      className="h-10 bg-slate-950/70 border-slate-700/80 text-white text-xs rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1 text-left">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Confirm New Password
-                    </Label>
-                    <Input
-                      type="password"
-                      placeholder="Confirm new password"
-                      value={recoverConfirmPass}
-                      onChange={(e) => setRecoverConfirmPass(e.target.value)}
-                      required
-                      suppressHydrationWarning
-                      className="h-10 bg-slate-950/70 border-slate-700/80 text-white text-xs rounded-xl"
-                    />
-                  </div>
-
-                  {recoverMsg && (
-                    <div className={`p-2.5 rounded-xl text-xs font-medium text-center ${
-                      recoverStatus === 'success'
-                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
-                        : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
-                    }`}>
-                      {recoverMsg}
-                    </div>
-                  )}
-
-                  <Button
-                    type="submit"
-                    disabled={recoverStatus === 'loading' || !recoverKey || !recoverNewPass}
-                    className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs transition-all cursor-pointer shadow-lg shadow-purple-600/20"
-                  >
-                    {recoverStatus === 'loading' ? 'Resetting via Supabase...' : 'Reset Super Admin Password'}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => { setIsForgotPassword(false); setRecoverMsg(''); }}
-                    className="w-full h-9 text-slate-400 hover:text-white text-xs cursor-pointer"
-                  >
-                    Cancel & Back to Login
-                  </Button>
-                </form>
-              ) : (
-                <div className="space-y-3 pt-1">
-                  <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-700/60 text-center space-y-2">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center mx-auto mb-2 border border-blue-500/30">
-                      <KeyRound className="w-5 h-5" />
-                    </div>
-                    <h3 className="text-sm font-bold text-white">Staff Credential Recovery</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Counselor PINs are managed directly by the Super Administrator. Please contact your Director at <strong className="text-blue-400">infotech9290@gmail.com</strong> to reset your counselor credentials.
-                    </p>
-                  </div>
-
-                  <Button
-                    type="button"
-                    onClick={() => setIsForgotPassword(false)}
-                    className="w-full h-11 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs transition-all cursor-pointer"
-                  >
-                    Back to Login
-                  </Button>
-                </div>
-              )}
+              <Button
+                type="button"
+                onClick={() => setIsForgotPassword(false)}
+                className="w-full h-11 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs transition-all cursor-pointer"
+              >
+                Back to Login
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>
