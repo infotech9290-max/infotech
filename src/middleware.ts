@@ -3,7 +3,19 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const roleCookie = request.cookies.get('portal_role')?.value || request.cookies.get('infotech_role')?.value;
+  const isExplicitLogout = 
+    request.nextUrl.searchParams.has('logout') || 
+    request.nextUrl.searchParams.has('logged_out');
+
+  // If user specifically navigated to /login during logout, always allow login page and purge cookies
+  if (pathname === '/login' && isExplicitLogout) {
+    const response = NextResponse.next();
+    response.cookies.delete('portal_role');
+    response.cookies.delete('infotech_role');
+    return response;
+  }
+
+  const roleCookie = request.cookies.get('portal_role')?.value;
 
   // Root path: redirect based on auth status
   if (pathname === '/') {
@@ -34,7 +46,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Login page: if already logged in, send directly to authorized dashboard
-  if (pathname === '/login') {
+  if (pathname === '/login' && !isExplicitLogout) {
     if (roleCookie === 'ADMIN') {
       return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     }

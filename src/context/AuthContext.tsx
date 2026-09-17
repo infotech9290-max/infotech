@@ -34,12 +34,22 @@ const STORAGE_ROLE_KEY = 'portal_auth_role';
 const STORAGE_USER_KEY = 'portal_auth_user';
 const COOKIE_NAME = 'portal_role';
 
+function clearAllAuthCookies() {
+  if (typeof document === 'undefined') return;
+  const cookieNames = [COOKIE_NAME, 'portal_role', 'infotech_role'];
+  cookieNames.forEach((name) => {
+    document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+    document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    document.cookie = `${name}=; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  });
+}
+
 function setRoleCookie(role: UserRole | null) {
   if (typeof document === 'undefined') return;
   if (role) {
     document.cookie = `${COOKIE_NAME}=${role}; path=/; max-age=604800; SameSite=Lax`;
   } else {
-    document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+    clearAllAuthCookies();
   }
 }
 
@@ -52,8 +62,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Restore authenticated session ONLY if user previously logged in
   useEffect(() => {
     try {
-      const savedRole = (localStorage.getItem(STORAGE_ROLE_KEY) || localStorage.getItem('infotech_portal_auth_role')) as UserRole | null;
-      const savedUserStr = localStorage.getItem(STORAGE_USER_KEY) || localStorage.getItem('infotech_portal_auth_user');
+      const savedRole = localStorage.getItem(STORAGE_ROLE_KEY) as UserRole | null;
+      const savedUserStr = localStorage.getItem(STORAGE_USER_KEY);
 
       if (savedRole === 'ADMIN' || savedRole === 'WORKER') {
         let parsedUser: AuthUser | null = null;
@@ -70,21 +80,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setRole(savedRole);
           setRoleCookie(savedRole);
         } else {
-          setUser(null);
-          setRole(null);
-          setRoleCookie(null);
+          clearAllAuthCookies();
         }
       } else {
-        // Not logged in -> Must see Login Page first!
-        setUser(null);
-        setRole(null);
-        setRoleCookie(null);
+        clearAllAuthCookies();
       }
-    } catch (err) {
-      console.error('Failed to initialize auth state:', err);
-      setUser(null);
-      setRole(null);
-      setRoleCookie(null);
+    } catch (e) {
+      console.error('Failed to restore session from localStorage:', e);
     } finally {
       setIsLoading(false);
     }
@@ -129,21 +131,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, router]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     setUser(null);
     setRole(null);
-    setRoleCookie(null);
+    clearAllAuthCookies();
 
     try {
       localStorage.removeItem(STORAGE_ROLE_KEY);
       localStorage.removeItem(STORAGE_USER_KEY);
+      localStorage.removeItem('infotech_portal_auth_role');
+      localStorage.removeItem('infotech_portal_auth_user');
+      sessionStorage.clear();
     } catch (e) {
       console.error('Failed to clear auth session on logout:', e);
     }
 
-    // Use window.location instead of router.replace for a TRUE hard refresh 
-    // This clears Next.js client-side router cache and forces middleware re-evaluation
-    window.location.href = '/login';
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    } catch {
+      // non-blocking
+    }
+
+    // Hard replace to login with logged_out parameter so middleware clears cookies and allows page
+    window.location.replace('/login?logged_out=true');
   }, []);
 
   const value = useMemo(() => ({
