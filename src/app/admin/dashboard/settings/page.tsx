@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, Check, Loader2, Building2, Paintbrush, BookOpen, Plus, Trash2, LayoutTemplate, AlertCircle, KeyRound, Lock, GraduationCap, Calendar, Sparkles } from 'lucide-react';
+import { ShieldCheck, Check, Loader2, Building2, Paintbrush, BookOpen, Plus, Trash2, LayoutTemplate, AlertCircle, KeyRound, Lock, GraduationCap, Calendar, Sparkles, Database, Download, UploadCloud, RefreshCw, FileJson, Copy, CheckCircle2, HardDrive, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
@@ -63,10 +63,170 @@ export default function SettingsPage() {
   const [saveMessage, setSaveMessage] = useState('');
   const [dbWarning, setDbWarning] = useState('');
 
-  // Database Setup State
+  // Database Setup & Telemetry State
   const [dbPat, setDbPat] = useState('');
   const [dbStatus, setDbStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [dbMsg, setDbMsg] = useState('');
+
+  const [dbStats, setDbStats] = useState<{
+    status: string;
+    host: string;
+    projectRef?: string;
+    latencyMs: number;
+    counts: { admissions: number; users: number; settings: number; audit_logs: number };
+  } | null>(null);
+  const [isFetchingStats, setIsFetchingStats] = useState(false);
+
+  // Backup & Restore State
+  const [isExporting, setIsExporting] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restorePreview, setRestorePreview] = useState<any | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Cloud-to-Cloud Migration State
+  const [targetUrl, setTargetUrl] = useState('');
+  const [targetKey, setTargetKey] = useState('');
+  const [targetPat, setTargetPat] = useState('');
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState<{
+    success: boolean;
+    message: string;
+    envSnippet?: string;
+    transferred?: any;
+  } | null>(null);
+
+  const fetchDbStats = async () => {
+    setIsFetchingStats(true);
+    try {
+      const res = await fetch('/api/admin/database/stats');
+      const json = await res.json();
+      if (json.success) {
+        setDbStats(json);
+      }
+    } catch (err) {
+      console.error('Failed to fetch DB stats:', err);
+    } finally {
+      setIsFetchingStats(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'database') {
+      fetchDbStats();
+    }
+  }, [activeTab]);
+
+  const handleExportBackup = async () => {
+    setIsExporting(true);
+    try {
+      const res = await fetch('/api/admin/database/backup');
+      if (!res.ok) throw new Error('Backup request failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `infotech_full_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Failed to download backup. Please check your database connection.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRestoreMsg(null);
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    setRestoreFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (parsed.data) {
+          setRestorePreview(parsed);
+        } else {
+          setRestoreMsg({ type: 'error', text: 'Invalid JSON backup format. Missing "data" object.' });
+          setRestorePreview(null);
+        }
+      } catch {
+        setRestoreMsg({ type: 'error', text: 'Selected file is not valid JSON.' });
+        setRestorePreview(null);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExecuteRestore = async () => {
+    if (!restorePreview) return;
+    setIsRestoring(true);
+    setRestoreMsg(null);
+    try {
+      const res = await fetch('/api/admin/database/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(restorePreview),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRestoreMsg({
+          type: 'success',
+          text: `✅ Restore Successful! Restored ${data.restored.admissions} students, ${data.restored.users} users, ${data.restored.settings} settings, and ${data.restored.audit_logs} logs into Supabase!`,
+        });
+        fetchDbStats();
+      } else {
+        setRestoreMsg({ type: 'error', text: `❌ ${data.error || 'Restore failed.'}` });
+      }
+    } catch {
+      setRestoreMsg({ type: 'error', text: '❌ Network error during database restore.' });
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const handleExecuteMigration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUrl.trim() || !targetKey.trim()) return;
+    setIsMigrating(true);
+    setMigrateResult(null);
+    try {
+      const res = await fetch('/api/admin/database/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUrl: targetUrl.trim(),
+          targetKey: targetKey.trim(),
+          pat: targetPat.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMigrateResult({
+          success: true,
+          message: data.message,
+          envSnippet: data.envSnippet,
+          transferred: data.transferred,
+        });
+      } else {
+        setMigrateResult({
+          success: false,
+          message: data.error || 'Migration failed.',
+        });
+      }
+    } catch {
+      setMigrateResult({
+        success: false,
+        message: 'Network error during cloud database migration.',
+      });
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   const handleDbSetup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +244,7 @@ export default function SettingsPage() {
         setDbStatus('success');
         setDbMsg('✅ Database initialized successfully! All tables created.');
         setDbWarning('');
+        fetchDbStats();
       } else {
         setDbStatus('error');
         setDbMsg(data.error || 'Setup failed. Check your PAT token.');
@@ -357,8 +518,8 @@ export default function SettingsPage() {
             activeTab === 'database' ? "border-red-600 text-red-700" : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
           )}
         >
-          <ShieldCheck className="w-4 h-4" />
-          DB Setup
+          <Database className="w-4 h-4" />
+          DB & Migration
         </button>
         <button
           onClick={() => setActiveTab('security')}
@@ -991,83 +1152,390 @@ export default function SettingsPage() {
         </form>
       )}
 
-      {/* TAB CONTENT: DATABASE SETUP */}
+      {/* TAB CONTENT: DATABASE MANAGEMENT & MIGRATION */}
       {activeTab === 'database' && (
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-xl bg-red-100 text-red-600">
-                <ShieldCheck className="w-5 h-5" />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+          {/* Section 1: Live Telemetry & Health */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <Database className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Database Telemetry & Live Telemetry</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Real-time connection status and actual row counts from your Supabase cloud tables.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-black text-slate-900">Database Auto-Setup</h3>
-                <p className="text-xs text-slate-500">One-click initialize — creates all tables automatically</p>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchDbStats}
+                  disabled={isFetchingStats}
+                  className="rounded-xl border-slate-200 text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetchingStats ? 'animate-spin' : ''}`} />
+                  Refresh Telemetry
+                </Button>
               </div>
             </div>
-            <div className="mt-3 text-xs text-slate-600 bg-white/60 rounded-xl p-3 space-y-1">
-              <p>🔑 <strong>Supabase Personal Access Token (PAT)</strong> required (One-time initialization)</p>
-              <p>📍 How to get: <strong>supabase.com → Account (top right) → Access Tokens → Generate new token → Database: Full access</strong></p>
-              <p>✅ Once generated, paste the token below and click Initialize.</p>
+
+            {/* Connection Telemetry Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Connection Status</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">
+                    {dbStats?.status === 'healthy' ? '🟢 Active & Healthy' : dbStats ? '🟡 Degraded' : 'Checking...'}
+                  </p>
+                </div>
+                <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Supabase Host</p>
+                <p className="text-sm font-mono font-bold text-slate-800 mt-0.5 truncate" title={dbStats?.host}>
+                  {dbStats?.host || 'Loading...'}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Latency</p>
+                <p className="text-sm font-mono font-bold text-slate-800 mt-0.5">
+                  {dbStats?.latencyMs !== undefined ? `${dbStats.latencyMs} ms` : '—'}
+                </p>
+              </div>
+            </div>
+
+            {/* Live Real Table Counts (Zero Dummy) */}
+            <div>
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-3">
+                Live Data Records in Database (Real Counts, Zero Dummy)
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-black text-blue-700 font-mono">
+                    {dbStats?.counts?.admissions ?? '—'}
+                  </p>
+                  <p className="text-xs font-bold text-slate-600 mt-1">Student Admissions</p>
+                  <span className="text-[10px] text-slate-400 font-mono">table: admissions</span>
+                </div>
+
+                <div className="bg-purple-50/50 border border-purple-100 rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-black text-purple-700 font-mono">
+                    {dbStats?.counts?.users ?? '—'}
+                  </p>
+                  <p className="text-xs font-bold text-slate-600 mt-1">Workers & Admins</p>
+                  <span className="text-[10px] text-slate-400 font-mono">table: users</span>
+                </div>
+
+                <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-black text-emerald-700 font-mono">
+                    {dbStats?.counts?.settings ?? '—'}
+                  </p>
+                  <p className="text-xs font-bold text-slate-600 mt-1">Platform Settings</p>
+                  <span className="text-[10px] text-slate-400 font-mono">table: settings</span>
+                </div>
+
+                <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-black text-slate-700 font-mono">
+                    {dbStats?.counts?.audit_logs ?? '—'}
+                  </p>
+                  <p className="text-xs font-bold text-slate-600 mt-1">Audit Footprints</p>
+                  <span className="text-[10px] text-slate-400 font-mono">table: audit_logs</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Setup Form */}
-          <form onSubmit={handleDbSetup} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                Supabase Personal Access Token (PAT)
-              </label>
-              <input
-                type="password"
-                value={dbPat}
-                onChange={(e) => setDbPat(e.target.value)}
-                placeholder="sbp_xxxxxxxxxxxxxxxxxxxx"
-                required
-                className="w-full h-12 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 font-mono"
-              />
-              <p className="text-[11px] text-slate-400">
-                This token is used only during table creation and is never permanently stored on the server.
-              </p>
+          {/* Section 2: 1-Click Full Backup (Export) */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 sm:p-8 shadow-sm space-y-5">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <Download className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">1-Click Full Database Backup (Export)</h3>
+                <p className="text-xs text-slate-500">
+                  Export all real students, workers, courses, fee structures, and audit logs into a single structured JSON file.
+                </p>
+              </div>
             </div>
 
-            {dbMsg && (
-              <div className={`p-4 rounded-xl text-sm font-medium flex items-start gap-3 ${
-                dbStatus === 'success'
-                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                  : 'bg-red-50 border border-red-200 text-red-700'
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold text-slate-800">
+                  Safe Industrial Backup (.json)
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Contains 100% live database tables. Store this file safely on your computer for instant recovery or transfer.
+                </p>
+              </div>
+              <Button
+                onClick={handleExportBackup}
+                disabled={isExporting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 px-6 rounded-xl shadow-sm text-xs cursor-pointer transition-all shrink-0"
+              >
+                {isExporting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Generating Backup...</>
+                ) : (
+                  <><Download className="w-4 h-4 mr-2" /> Download Full JSON Backup</>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Section 3: Restore / Import from Backup File */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 sm:p-8 shadow-sm space-y-5">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                <UploadCloud className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Restore Data from Backup File</h3>
+                <p className="text-xs text-slate-500">
+                  Import a previously exported JSON backup file into your database with safe upserting (no duplicate ID errors).
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-slate-300 transition-colors bg-slate-50/50">
+                <FileJson className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                <p className="text-xs font-bold text-slate-700">Select JSON Backup File</p>
+                <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Upload your infotech_full_backup_*.json file</p>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleFileSelect}
+                  className="text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                />
+              </div>
+
+              {restorePreview && (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800">Backup File Contents:</span>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      Exported: {restorePreview.meta?.exportedAt ? new Date(restorePreview.meta.exportedAt).toLocaleString() : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    <div className="bg-white p-2 rounded-xl border border-slate-200">
+                      <p className="font-bold text-blue-700">{restorePreview.data?.admissions?.length || 0}</p>
+                      <p className="text-[10px] text-slate-400">Students</p>
+                    </div>
+                    <div className="bg-white p-2 rounded-xl border border-slate-200">
+                      <p className="font-bold text-purple-700">{restorePreview.data?.users?.length || 0}</p>
+                      <p className="text-[10px] text-slate-400">Users</p>
+                    </div>
+                    <div className="bg-white p-2 rounded-xl border border-slate-200">
+                      <p className="font-bold text-emerald-700">{restorePreview.data?.settings?.length || 0}</p>
+                      <p className="text-[10px] text-slate-400">Settings</p>
+                    </div>
+                    <div className="bg-white p-2 rounded-xl border border-slate-200">
+                      <p className="font-bold text-slate-700">{restorePreview.data?.audit_logs?.length || 0}</p>
+                      <p className="text-[10px] text-slate-400">Audit Logs</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleExecuteRestore}
+                    disabled={isRestoring}
+                    className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs shadow-sm cursor-pointer"
+                  >
+                    {isRestoring ? (
+                      <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Restoring into Supabase...</>
+                    ) : (
+                      <><UploadCloud className="w-4 h-4 mr-2" /> Restore All Data Now</>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {restoreMsg && (
+                <div className={`p-4 rounded-xl text-xs font-bold flex items-center gap-2.5 ${
+                  restoreMsg.type === 'success'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : 'bg-red-50 border border-red-200 text-red-800'
+                }`}>
+                  {restoreMsg.type === 'success' ? <Check className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
+                  <span>{restoreMsg.text}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section 4: Direct Cloud-to-Cloud Migration (Target New Supabase) */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                <ArrowRightLeft className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Direct Cloud-to-Cloud Data Migration</h3>
+                <p className="text-xs text-slate-500">
+                  Created a new Supabase project? Migrate your entire live database to the new Supabase instance in 1 click.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleExecuteMigration} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    New Target Supabase URL
+                  </Label>
+                  <Input
+                    value={targetUrl}
+                    onChange={(e) => setTargetUrl(e.target.value)}
+                    placeholder="https://xxxxxxxxxxxx.supabase.co"
+                    required
+                    className="h-11 rounded-xl text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400">Found in Project Settings → API → Project URL</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    New Target Supabase Key (Service Role or Anon)
+                  </Label>
+                  <Input
+                    type="password"
+                    value={targetKey}
+                    onChange={(e) => setTargetKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    required
+                    className="h-11 rounded-xl text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400">Service role key recommended for bypassing RLS during transfer</p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  New Target Supabase PAT Token (Optional — for auto-creating tables)
+                </Label>
+                <Input
+                  type="password"
+                  value={targetPat}
+                  onChange={(e) => setTargetPat(e.target.value)}
+                  placeholder="sbp_xxxxxxxxxxxxxxxxxxxx (Optional)"
+                  className="h-11 rounded-xl text-xs font-mono"
+                />
+                <p className="text-[10px] text-slate-400">
+                  If provided, this tool will also automatically run all SQL table schemas on the new Supabase project first.
+                </p>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isMigrating || !targetUrl.trim() || !targetKey.trim()}
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md text-xs cursor-pointer transition-all"
+              >
+                {isMigrating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Migrating Live Database to New Supabase...</>
+                ) : (
+                  <><ArrowRightLeft className="w-4 h-4 mr-2" /> Start Cloud-to-Cloud Migration</>
+                )}
+              </Button>
+            </form>
+
+            {migrateResult && (
+              <div className={`p-5 rounded-2xl border space-y-3 ${
+                migrateResult.success
+                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                  : 'bg-red-50/80 border-red-200 text-red-900'
               }`}>
-                <span>{dbMsg}</span>
+                <div className="flex items-center gap-2 text-sm font-bold">
+                  {migrateResult.success ? <Check className="w-5 h-5 text-emerald-600 shrink-0" /> : <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />}
+                  <span>{migrateResult.message}</span>
+                </div>
+
+                {migrateResult.success && migrateResult.transferred && (
+                  <div className="grid grid-cols-4 gap-2 text-center text-xs py-2">
+                    <div className="bg-white/80 p-2 rounded-xl">
+                      <p className="font-bold text-emerald-800">{migrateResult.transferred.admissions}</p>
+                      <p className="text-[10px] text-slate-500">Students</p>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-xl">
+                      <p className="font-bold text-emerald-800">{migrateResult.transferred.users}</p>
+                      <p className="text-[10px] text-slate-500">Users</p>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-xl">
+                      <p className="font-bold text-emerald-800">{migrateResult.transferred.settings}</p>
+                      <p className="text-[10px] text-slate-500">Settings</p>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-xl">
+                      <p className="font-bold text-emerald-800">{migrateResult.transferred.audit_logs}</p>
+                      <p className="text-[10px] text-slate-500">Logs</p>
+                    </div>
+                  </div>
+                )}
+
+                {migrateResult.envSnippet && (
+                  <div className="space-y-1.5 pt-2 border-t border-emerald-200">
+                    <p className="text-xs font-bold">Next Step: Update your Environment Variables in Vercel or .env.local:</p>
+                    <pre className="p-3 rounded-xl bg-slate-900 text-slate-100 text-[11px] font-mono overflow-x-auto">
+                      {migrateResult.envSnippet}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
+          </div>
 
-            <Button
-              type="submit"
-              disabled={dbStatus === 'loading' || !dbPat.trim()}
-              className="w-full h-12 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
-            >
-              {dbStatus === 'loading' ? (
-                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Initializing Database...</>
-              ) : dbStatus === 'success' ? (
-                <><Check className="w-4 h-4 mr-2" /> Database Ready!</>
-              ) : (
-                '🚀 Initialize Database Now'
-              )}
-            </Button>
-          </form>
-
-          {/* Vercel Tip */}
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
-            <h4 className="text-sm font-bold text-blue-800 mb-2">💡 Production Deployment (Vercel / Netlify):</h4>
-            <p className="text-xs text-slate-600 mb-3">
-              Add these Environment Variables in your Vercel Project Settings (Project → Settings → Environment Variables):
-            </p>
-            <div className="bg-white rounded-xl border border-blue-100 p-3 font-mono text-xs text-slate-700 space-y-1.5">
-              <p><span className="text-blue-600">SUPABASE_URL</span> = https://&lt;your-project-id&gt;.supabase.co</p>
-              <p><span className="text-blue-600">SUPABASE_ANON_KEY</span> = eyJhbGci...</p>
-              <p><span className="text-red-600">SUPABASE_PAT</span> = sbp_... (your personal access token)</p>
+          {/* Section 5: One-Click Table Schema Initializer (PAT) */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 sm:p-8 shadow-sm space-y-4">
+            <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center font-bold">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Blank Database Schema Installer (PAT)</h3>
+                <p className="text-xs text-slate-500">For completely fresh, empty databases that only need table creation.</p>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-500 mt-2">Vercel: Project → Settings → Environment Variables</p>
+
+            <form onSubmit={handleDbSetup} className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                  Supabase Personal Access Token (PAT)
+                </Label>
+                <Input
+                  type="password"
+                  value={dbPat}
+                  onChange={(e) => setDbPat(e.target.value)}
+                  placeholder="sbp_xxxxxxxxxxxxxxxxxxxx"
+                  className="h-11 rounded-xl text-xs font-mono"
+                />
+              </div>
+
+              {dbMsg && (
+                <div className={`p-4 rounded-xl text-xs font-medium flex items-start gap-3 ${
+                  dbStatus === 'success'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                    : 'bg-red-50 border border-red-200 text-red-700'
+                }`}>
+                  <span>{dbMsg}</span>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                disabled={dbStatus === 'loading' || !dbPat.trim()}
+                className="w-full h-11 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+              >
+                {dbStatus === 'loading' ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Initializing Schema...</>
+                ) : (
+                  '⚡ Run Schema SQL on Connected Supabase'
+                )}
+              </Button>
+            </form>
           </div>
         </div>
       )}

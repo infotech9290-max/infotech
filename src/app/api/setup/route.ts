@@ -5,7 +5,7 @@ const PROJECT_REF = process.env.SUPABASE_URL
   ? new URL(process.env.SUPABASE_URL).hostname.split('.')[0]
   : '';
 
-const SCHEMA_SQL = `
+export const SCHEMA_SQL = `
 -- Settings Table
 CREATE TABLE IF NOT EXISTS public.settings (
   id INTEGER PRIMARY KEY DEFAULT 1,
